@@ -40,7 +40,7 @@
     
 
     const Button = styled.button`
-    width: 315px;
+    width: 100%;
     height: 54px;
     border-radius: 10px;
     background: #53B175;
