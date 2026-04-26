@@ -13,7 +13,7 @@ import FtIcon from "../assets/img/ftIcon.svg";
 import CanIcon from "../assets/img/canIcon.svg";
 import TrashIcon from "../assets/img/trashIcon.svg";
 
-import HomeIcon from "../assets/img/varhome.svg?url";
+import HomeIcon from "../assets/img/varhomeOn.svg?url";
 import LocationIcon from "../assets/img/varlocation.svg";
 import ActivityIcon from "../assets/img/varactivity.svg";
 import ProfileIcon from "../assets/img/varprofile.svg";
@@ -110,33 +110,27 @@ const Card = styled.div`
 
 const SearchBar = styled.div`
   position: absolute;
-  top: 294px;
-  left: 21px;
-  width: 351px;
-  height: 50px;
-  box-sizing: border-box;
-  padding: 0 12px;
-  border: 1px solid #d9d9d9;
-  border-radius: 15px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  width: 90%;
+  padding: 10px 15px;
+  top: 294px;
+  left: 21px;
+  height: 50px;
+  box-sizing: border-box;
+  border: 1px solid #d9d9d9;
+  border-radius: 15px;
   overflow: hidden;
 `;
 
-const SearchLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-`;
-
 const SearchInput = styled.input`
+  flex: 1;
   border: none;
   outline: none;
+  font-size: 16px;
   background: transparent;
   font-family: Paperlogy;
-  font-size: 14px;
   color: #000;
   width: 100%;
   ::placeholder {
@@ -147,16 +141,8 @@ const SearchInput = styled.input`
 const SearchIcon = styled.img`
   width: 24px;
   height: 24px;
-  flex-shrink: 0;
-`;
-
-const Mic = styled.div`
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  cursor: pointer;
+  margin-left: 10px;
 `;
 
 const CategoryGrid = styled.div`
@@ -170,7 +156,7 @@ const CategoryGrid = styled.div`
   white-space: nowrap;
   padding-bottom: 8px;
   &::-webkit-scrollbar {
-    display: none;
+  display: none;
   }
 `;
 
@@ -318,29 +304,20 @@ const Home = () => {
             제가 알려드릴게요!
           </SubText>
 
-          <EarthBackground /> 
-          
+          <EarthBackground />
+
           <CharacterImage />
-          
+
           <Card />
 
           <SearchBar>
-            <SearchLeft>
-              <SearchIcon src={SearchIconImg} alt="search" />
-              <SearchInput
-                type="text"
-                placeholder="검색어를 입력하세요"
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-              />
-            </SearchLeft>
-            <Mic>
-              <img
-                src="data:image/svg+xml,%3csvg%20width='32'%20height='32'%20viewBox='0%200%2032%2032'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20fill-rule='evenodd'%20clip-rule='evenodd'%20d='M16.7998%2021.9467C18.2401%2021.7529%2019.5611%2021.043%2020.5174%2019.9488C21.4738%2018.8547%2022.0005%2017.4506%2021.9998%2015.9974V14H20.3998V15.9974C20.3998%2017.1643%2019.9363%2018.2835%2019.1111%2019.1086C18.2859%2019.9338%2017.1668%2020.3974%2015.9998%2020.3974C14.8329%2020.3974%2013.7137%2019.9338%2012.8886%2019.1086C12.0634%2018.2835%2011.5998%2017.1643%2011.5998%2015.9974V14H9.99984V15.9974C9.99913%2017.4506%2010.5259%2018.8547%2011.4822%2019.9488C12.4386%2021.043%2013.7596%2021.7529%2015.1998%2021.9467V24H16.7998V21.9467ZM15.9998%2029.3334C8.63584%2029.3334%202.6665%2023.364%202.6665%2016C2.6665%208.63602%208.63584%202.66669%2015.9998%202.66669C23.3638%202.66669%2029.3332%208.63602%2029.3332%2016C29.3332%2023.364%2023.3638%2029.3334%2015.9998%2029.3334ZM15.9998%208.66669C15.2926%208.66669%2014.6143%208.94764%2014.1142%209.44774C13.6141%209.94783%2013.3332%2010.6261%2013.3332%2011.3334V16C13.3332%2016.7073%2013.6141%2017.3855%2014.1142%2017.8856C14.6143%2018.3857%2015.2926%2018.6667%2015.9998%2018.6667C16.7071%2018.6667%2017.3854%2018.3857%2017.8855%2017.8856C18.3856%2017.3855%2018.6665%2016.7073%2018.6665%2016V11.3334C18.6665%2010.6261%2018.3856%209.94783%2017.8855%209.44774C17.3854%208.94764%2016.7071%208.66669%2015.9998%208.66669Z'%20fill='%2353B175'%2f%3e%3c/svg%3e"
-                alt="mic"
-                style={{ width: "32px", height: "32px", display: "block" }}
-              />
-            </Mic>
+            <SearchInput
+              type="text"
+              placeholder="검색어를 입력하세요"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+            />
+            <SearchIcon src={SearchIconImg} alt="search" />
           </SearchBar>
 
           <CategoryGrid>
