@@ -109,3 +109,7 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./assets/fonts/Paperlogy.ttf');
+}
