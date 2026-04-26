@@ -9,6 +9,8 @@ import Login from "../pages/Login.jsx";
 import InputLogin from "../components/InputLogin.jsx";
 import SnsLogin from "../components/SnsLogin.jsx";
 
+import Search from "../pages/Search"
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -22,6 +24,7 @@ const router = createBrowserRouter([
     path:"/login",
     element: <Login/>,
   },
+  { path: "/search", element: <Search /> }
 ]);
 
 export default router;
