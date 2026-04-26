@@ -105,12 +105,62 @@ const Chip = styled.button`
   cursor: pointer;
 `
 
+const RecentChip = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #F5F5F5;
+  font-size: 13px;
+  font-family: 'Paperlogy';
+  color: #272727;
+`
+
+const DeleteChip = styled.button`
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: #B1B2B3;
+  cursor: pointer;
+  padding: 0;
+`
+
 const Search = () => {
   const navigate = useNavigate()
   const [searchValue, setSearchValue] = useState("")
   const [recentSearch, setRecentSearch] = useState([])
 
   const keywords = ["#일반쓰레기", "#음식물쓰레기", "#플라스틱", "#캔/금속", "#종이", "#유리"]
+
+  // 검색어 추가
+  const handleSearch = () => {
+    if (!searchValue.trim()) return
+    // 중복 제거 후 앞에 추가
+    const filtered = recentSearch.filter((item) => item !== searchValue)
+    setRecentSearch([searchValue, ...filtered])
+    setSearchValue("")
+  }
+
+  // 엔터키로 검색
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") handleSearch()
+  }
+
+  // 최근 검색어 하나 삭제
+  const handleDeleteOne = (keyword) => {
+    setRecentSearch(recentSearch.filter((item) => item !== keyword))
+  }
+
+  // 전체 삭제
+  const handleDeleteAll = () => {
+    setRecentSearch([])
+  }
+
+  // 추천 검색어 칩 클릭시 검색창에 자동 입력
+  const handleChipClick = (keyword) => {
+    setSearchValue(keyword.replace("#", ""))
+  }
 
   return (
     <Container>
@@ -121,18 +171,28 @@ const Search = () => {
             placeholder="검색어를 입력하세요"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
+            onKeyDown={handleKeyDown}
           />
-          <img src={searchIcon} width={18} height={18} />
+          <img src={searchIcon} width={18} height={18} onClick={handleSearch} style={{ cursor: "pointer" }} />
         </SearchBar>
       </Header>
 
       <Section>
         <SectionHeader>
           <SectionTitle>최근 검색어</SectionTitle>
-          <DeleteAll>전체 삭제</DeleteAll>
+          <DeleteAll onClick={handleDeleteAll}>전체 삭제</DeleteAll>
         </SectionHeader>
-        {recentSearch.length === 0 && (
+        {recentSearch.length === 0 ? (
           <EmptyText>최근 검색어가 없습니다.</EmptyText>
+        ) : (
+          <ChipWrapper style={{ justifyContent: "flex-start" }}>
+            {recentSearch.map((keyword) => (
+              <RecentChip key={keyword}>
+                {keyword}
+                <DeleteChip onClick={() => handleDeleteOne(keyword)}>✕</DeleteChip>
+              </RecentChip>
+            ))}
+          </ChipWrapper>
         )}
       </Section>
 
@@ -140,7 +200,9 @@ const Search = () => {
         <SectionTitle>추천 검색어</SectionTitle>
         <ChipWrapper>
           {keywords.map((keyword) => (
-            <Chip key={keyword}>{keyword}</Chip>
+            <Chip key={keyword} onClick={() => handleChipClick(keyword)}>
+              {keyword}
+            </Chip>
           ))}
         </ChipWrapper>
       </Section>
