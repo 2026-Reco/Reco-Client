@@ -18,6 +18,8 @@ import SignUp from "../pages/SignUp.jsx";
 import Search from "../pages/Search.jsx";
 import Loading from "../pages/Loading.jsx";
 import Activity from "../pages/Activity.jsx";
+import MapPage from "../pages/MapPage.jsx";
+
 // import SignUp from "../pages/SignUp.jsx";
 // import Login from "../pages/Login.jsx";
 // import InputLogin from "../components/InputLogin.jsx";
@@ -48,7 +50,8 @@ const router = createBrowserRouter([
   { path: "/signup", element: <SignUp /> },
   { path: "/search", element: <Search /> },
   { path: "/loading", element: <Loading /> },
-  { path: "/activity", element: <Activity /> }
+  { path: "/activity", element: <Activity /> },
+  {path: "/location", element: <MapPage /> },
 ]);
 
 export default router;
