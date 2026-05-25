@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// home.jsx
+import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { CommonLayout } from "../components/CommonLayout";
@@ -25,11 +26,10 @@ import SearchIconImg from "../assets/img/search.svg";
 const Main = styled.div`
   position: relative;
   width: 393px;
-  height: 852px;
+  height: 800px;
   margin: 0 auto;
   background: #ffffff;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden; 
 `;
 
 const TitleGreen = styled.div`
@@ -102,10 +102,11 @@ const Card = styled.div`
   top: 257px;
   left: 0;
   width: 393px;
-  height: 596px;
-  background: #ffffff !important; /* !important를 추가하여 배경색 강제 적용 */
+  /* 852px(전체높이) - 257px(탑 위치) = 딱 맞게 떨어지는 595px로 변경 */
+  height: 595px; 
+  background: #ffffff !important;
   box-shadow: 0px 1px 8.3px rgba(0, 0, 0, 0.25);
-  border-radius: 20px 20px 0 0;
+  border-radius: 12px 12px 0 0;
 `;
 
 const SearchBar = styled.div`
@@ -220,17 +221,16 @@ const LocationBadge = styled.div`
   color: #7a7777;
 `;
 
-const MapImage = styled.div`
+const MapContainer = styled.div`
   position: absolute;
   left: 21px;
-  top: 531px;
+  top: 515px; 
   width: 351px;
-  height: 209px;
-  background-image: url(${MainMapImg});
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  height: 249px; 
   border-radius: 10px;
+  overflow: hidden;
+  z-index: 2;
+  cursor: pointer; 
 `;
 
 /* ===== Bottom Nav 스타일 ===== */
@@ -291,76 +291,120 @@ const StyledCameraIcon = styled.img`
 /* ===== Main Component ===== */
 const Home = () => {
   const [searchValue, setSearchValue] = useState("");
+  const [currentAddress, setCurrentAddress] = useState("위치 탐색 중...");
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const container = document.getElementById("kakao-map");
+    if (!container || !window.kakao) return;
+
+    // 기본 좌표값 (관악구 난곡동)
+    const defaultCoords = new window.kakao.maps.LatLng(37.4781, 126.9517);
+
+    const options = {
+      center: defaultCoords,
+      level: 4,
+    };
+
+    const map = new window.kakao.maps.Map(container, options);
+    const geocoder = new window.kakao.maps.services.Geocoder();
+
+    // 좌표를 한글 동 주소로 바꾸는 함수
+    const searchAddrFromCoords = (coords, callback) => {
+      geocoder.coord2RegionCode(coords.getLng(), coords.getLat(), callback);
+    };
+
+    // 주소 변환 결과 처리 함수
+    const displayCenterInfo = (result, status) => {
+      if (status === window.kakao.maps.services.Status.OK) {
+        for (let i = 0; i < result.length; i++) {
+          if (result[i].region_type === "H") {
+            setCurrentAddress(result[i].region_3depth_name);
+            break;
+          }
+        }
+      }
+    };
+
+    // 1. 초기 맵 로드 시 기본 위치 주소 설정
+    searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+
+    // 2. GPS 권한 허용 시 현재 사용자 위치로 중심 이동
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          const currentPos = new window.kakao.maps.LatLng(lat, lon);
+
+          map.setCenter(currentPos);
+          searchAddrFromCoords(currentPos, displayCenterInfo);
+        },
+        (error) => {
+          console.error("GPS 위치 정보를 가져오는 데 실패했습니다.", error);
+          searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
+
+    // [핵심 추가] 지도가 드래그/확대 등으로 이동했다가 "멈췄을 때(idle)" 중심점 구해서 동 이름 갱신
+    window.kakao.maps.event.addListener(map, "idle", () => {
+      const centerCoords = map.getCenter(); // 움직여서 멈춘 지도의 중심 좌표 가져오기
+      searchAddrFromCoords(centerCoords, displayCenterInfo);
+    });
+
+    // 카카오맵 타일 영역 클릭 리스너 (원래대로 페이지 이동)
+    window.kakao.maps.event.addListener(map, "click", () => {
+      navigate("/location");
+    });
+  }, [navigate]);
+
   return (
-    <>
-      <CommonLayout>
-        <Main>
-          <TitleGreen>지구를 위해,</TitleGreen>
-          <TitleBlack>분리수거 함께<br />하실래요?</TitleBlack>
-          <SubText>
-            어떤 쓰레기인지 헷갈리셨죠?<br />
-            제가 알려드릴게요!
-          </SubText>
+    <CommonLayout>
+      <Main>
+        <TitleGreen>지구를 위해,</TitleGreen>
+        <TitleBlack>분리수거 함께<br />하실래요?</TitleBlack>
+        <SubText>
+          어떤 쓰레기인지 헷갈리셨죠?<br />
+          제가 알려드릴게요!
+        </SubText>
 
-          <EarthBackground />
+        <EarthBackground />
+        <CharacterImage />
 
-          <CharacterImage />
+        <Card />
 
-          <Card />
+        <SearchBar>
+          <SearchInput
+            type="text"
+            placeholder="검색어를 입력하세요"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+          />
+          <SearchIcon src={SearchIconImg} alt="search" />
+        </SearchBar>
 
-          <SearchBar>
-            <SearchInput
-              type="text"
-              placeholder="검색어를 입력하세요"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-            />
-            <SearchIcon src={SearchIconImg} alt="search" />
-          </SearchBar>
+        <CategoryGrid>
+          <CategoryItem onClick={() => navigate('/paper')}><CategoryIcon img={PaperIcon} /><CategoryText>종이</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/plastic')}><CategoryIcon img={PlasticIcon} /><CategoryText>플라스틱</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/glass')}><CategoryIcon img={GlassIcon} /><CategoryText>유리</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/food')}><CategoryIcon img={FtIcon} /><CategoryText>음식물</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/can')}><CategoryIcon img={CanIcon} /><CategoryText>캔</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/trash')}><CategoryIcon img={TrashIcon} /><CategoryText>일반쓰레기</CategoryText></CategoryItem>
+        </CategoryGrid>
 
-          <CategoryGrid>
-            <CategoryItem onClick={() => navigate('/paper')}>
-              <CategoryIcon img={PaperIcon} />
-              <CategoryText>종이</CategoryText>
-            </CategoryItem>
+        <LocationTitle>
+          <LocationSub>나의 위치 기반</LocationSub>
+          <LocationMain>가까운 분리배출 장소</LocationMain>
+        </LocationTitle>
+        
+        <LocationBadge>📍 {currentAddress}</LocationBadge>
 
-            <CategoryItem onClick={() => navigate('/plastic')}>
-              <CategoryIcon img={PlasticIcon} />
-              <CategoryText>플라스틱</CategoryText>
-            </CategoryItem>
+        <MapContainer id="kakao-map" onClick={() => navigate("/location")} />
 
-            <CategoryItem onClick={() => navigate('/glass')}>
-              <CategoryIcon img={GlassIcon} />
-              <CategoryText>유리</CategoryText>
-            </CategoryItem>
-
-            <CategoryItem onClick={() => navigate('/food')}>
-              <CategoryIcon img={FtIcon} />
-              <CategoryText>음식물</CategoryText>
-            </CategoryItem>
-
-            <CategoryItem onClick={() => navigate('/can')}>
-              <CategoryIcon img={CanIcon} />
-              <CategoryText>캔</CategoryText>
-            </CategoryItem>
-
-            <CategoryItem onClick={() => navigate('/trash')}>
-              <CategoryIcon img={TrashIcon} />
-              <CategoryText>일반쓰레기</CategoryText>
-            </CategoryItem>
-          </CategoryGrid>
-
-          <LocationTitle>
-            <LocationSub>나의 위치 기반</LocationSub>
-            <LocationMain>가까운 분리배출 장소</LocationMain>
-          </LocationTitle>
-          <LocationBadge>관악구 난곡동</LocationBadge>
-          <MapImage />
-        </Main>
-      </CommonLayout>
-    </>
+      </Main>
+    </CommonLayout>
   );
 };
 
