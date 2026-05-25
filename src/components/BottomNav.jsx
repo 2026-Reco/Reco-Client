@@ -19,7 +19,7 @@ import ProfileOnIcon from "../assets/img/varprofileOn.svg";
 
 // --- 스타일 (기존 코드 유지) ---
 const NavContainer = styled.div`
-  position: fixed; /* 절대위치보다는 화면 하단 고정 */
+  position: fixed; /* 화면 하단 고정 */
   bottom: 0;
   width: 393px;
   height: 88px;
@@ -93,7 +93,7 @@ const BottomNavComponent = ({ onCapture }) => {
       </NavItem>
 
       <CameraWrapper onClick={handleCameraClick}>
-        <StyledCameraIcon src={isScan ? ScanIcon : CameraIcon} />
+        <StyledCameraIcon src={CameraIcon} />
       </CameraWrapper>
 
       <NavItem onClick={() => navigate('/activity')}>
