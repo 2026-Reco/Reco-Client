@@ -3,47 +3,92 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import BiumChatImg from "../assets/img/BiumProfile.svg"; 
 import ChatSelectIcon from "../assets/img/Chat_select.svg";
+import { sendChatToGemini } from "../services/gemini";
+
+const nowTime = () =>
+    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 const ChatbotPage = () => {
     const navigate = useNavigate();
     const [inputValue, setInputValue] = useState("");
-    // 채팅 메시지들을 담는 배열 상태
-    const [messages, setMessages] = useState([]);
+    const [messages, setMessages] = useState([
+        {
+            id: Date.now(),
+            text: "안녕하세요! 분리수거 도우미 비움이예요. 궁금한 품목이나 분리배출 방법을 물어봐 주세요.",
+            sender: "bium",
+            time: nowTime(),
+        },
+    ]);
+    const [isLoading, setIsLoading] = useState(false);
     const chatEndRef = useRef(null);
 
-    // 새 메시지가 추가될 때마다 스크롤을 맨 아래로 이동
     const scrollToBottom = () => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, isLoading]);
 
-    // 메시지 전송 함수
-    const handleSendMessage = () => {
-        if (inputValue.trim() === "") return;
+    const handleSendMessage = async () => {
+        if (inputValue.trim() === "" || isLoading) return;
 
-        const newMessage = {
+        const userText = inputValue.trim();
+        const userMessage = {
             id: Date.now(),
-            text: inputValue,
+            text: userText,
             sender: "user",
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            time: nowTime(),
         };
 
-        setMessages([...messages, newMessage]);
+        const nextMessages = [...messages, userMessage];
+        setMessages(nextMessages);
         setInputValue("");
+        setIsLoading(true);
 
-        // (선택 사항) 비움이의 자동 응답 시뮬레이션
-        setTimeout(() => {
-            const biumReply = {
-                id: Date.now() + 1,
-                text: "죄송합니다. 아직 학습 중인 질문이에요. 분리수거 방법을 다시 확인해 드릴까요?",
-                sender: "bium",
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-            setMessages(prev => [...prev, biumReply]);
-        }, 1000);
+        try {
+            const history = nextMessages
+                .filter((m) => m.sender === "user" || m.sender === "bium")
+                .map((m) => ({
+                    role: m.sender === "user" ? "user" : "model",
+                    text: m.text,
+                }));
+
+            const replyText = await sendChatToGemini(history);
+
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: Date.now() + 1,
+                    text: replyText,
+                    sender: "bium",
+                    time: nowTime(),
+                },
+            ]);
+        } catch (err) {
+            console.error("[비움이] Gemini 호출 실패:", err);
+            const msg = String(err?.message || "");
+            let friendly = "죄송해요, 지금 응답을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.";
+            if (msg.includes("denied") || msg.includes("403")) {
+                friendly =
+                    "분리수거 도우미 연결에 문제가 생겼어요. (Gemini API 키 접근 권한이 차단된 상태예요. 관리자에게 키 교체를 요청해 주세요.)";
+            } else if (msg.includes("429") || msg.toLowerCase().includes("quota")) {
+                friendly = "오늘 사용량이 너무 많아 잠시 쉬는 중이에요. 잠시 후 다시 시도해 주세요.";
+            } else if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+                friendly = "서버에 연결할 수 없어요. Reco 서버가 켜져 있는지 확인해 주세요.";
+            }
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: Date.now() + 1,
+                    text: friendly,
+                    sender: "bium",
+                    time: nowTime(),
+                },
+            ]);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -75,18 +120,40 @@ const ChatbotPage = () => {
                         </BiumMessageSection>
                     )
                 ))}
+                {isLoading && (
+                    <BiumMessageSection>
+                        <BiumProfile src={BiumChatImg} alt="비움이" />
+                        <BiumContent>
+                            <BiumName>비움이</BiumName>
+                            <BiumResponse>
+                                <MessageBubble>입력 중...</MessageBubble>
+                            </BiumResponse>
+                        </BiumContent>
+                    </BiumMessageSection>
+                )}
                 <div ref={chatEndRef} />
             </ChatArea>
 
             <InputWrapper>
                 <InputContainer>
-                    <ChatInput 
-                        placeholder="비움이에게 물어보기" 
+                    <ChatInput
+                        placeholder={isLoading ? "비움이가 응답 중이에요..." : "비움이에게 물어보기"}
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSendMessage();
+                            }
+                        }}
+                        disabled={isLoading}
                     />
-                    <SendBtn src={ChatSelectIcon} alt="전송" onClick={handleSendMessage} />
+                    <SendBtn
+                        src={ChatSelectIcon}
+                        alt="전송"
+                        onClick={handleSendMessage}
+                        style={{ opacity: isLoading ? 0.5 : 1, pointerEvents: isLoading ? "none" : "auto" }}
+                    />
                 </InputContainer>
             </InputWrapper>
         </Container>
