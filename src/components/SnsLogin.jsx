@@ -2,6 +2,7 @@
 import styled from "styled-components"
 import googleIcon from "../assets/google.png"
 import kakaoIcon from "../assets/kakao.png"
+import { getRequiredEnv } from "../config/env"
 
 const Wrapper = styled.div`
   display: flex;
@@ -55,20 +56,28 @@ const Line = styled.div`
 
 const SnsLogin = () => {
   const handleGoogleLogin = () => {
-    const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
-    const REDIRECT_URI = "http://localhost:5173/oauth/google"
-    const SCOPE = "email profile"
+    try {
+      const CLIENT_ID = getRequiredEnv("VITE_GOOGLE_CLIENT_ID")
+      const REDIRECT_URI = getRequiredEnv("VITE_GOOGLE_REDIRECT_URI")
+      const SCOPE = "email profile"
 
-    window.location.href =
-      `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=${SCOPE}`
+      window.location.href =
+        `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${encodeURIComponent(SCOPE)}`
+    } catch (error) {
+      alert(error.message)
+    }
   }
 
   const handleKakaoLogin = () => {
-    const REST_API_KEY = import.meta.env.VITE_KAKAO_REST_API_KEY
-    const REDIRECT_URI = "http://localhost:5173/oauth/kakao"
+    try {
+      const REST_API_KEY = getRequiredEnv("VITE_KAKAO_REST_API_KEY")
+      const REDIRECT_URI = getRequiredEnv("VITE_KAKAO_REDIRECT_URI")
 
-    window.location.href =
-      `https://kauth.kakao.com/oauth/authorize?client_id=${REST_API_KEY}&redirect_uri=${REDIRECT_URI}&response_type=code`
+      window.location.href =
+        `https://kauth.kakao.com/oauth/authorize?client_id=${REST_API_KEY}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code`
+    } catch (error) {
+      alert(error.message)
+    }
   }
 
   return (

@@ -11,138 +11,248 @@ import GoodIcon from "../assets/img/goodIcon.svg";
 import NormalIcon from "../assets/img/normalIcon.svg";
 import BadIcon from "../assets/img/badIcon.svg";
 import BackIcon from "../assets/img/Vector.svg";
+import { getRequiredEnv } from "../config/env";
+
+const SPRING_API_BASE = getRequiredEnv("VITE_SPRING_API_BASE_URL");
 
 const ResultPage = () => {
-    const location = useLocation();
-    const navigate = useNavigate();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-    // 📍 말풍선 설명창 열림/닫힘 상태 관리
-    const [showTooltip, setShowTooltip] = useState(false);
+  // 📍 말풍선 설명창 열림/닫힘 상태 관리
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-    // 백엔드 연동 전 기본 더미 객체 정의
-    const { result, capturedImage } = location.state || {
-        result: { 
-            item: "플라스틱 병", 
-            confidence: 85,
-            contamination: "good" // 👈 'good', 'normal', 'bad' 중 하나가 들어옴
+  // 백엔드 연동 전 기본 더미 객체 정의
+  const { result, capturedImage } = location.state || {
+    result: {
+      item: "플라스틱 병",
+      confidence: 85,
+      contamination: "good", // 👈 'good', 'normal', 'bad' 중 하나가 들어옴
+    },
+    capturedImage: null,
+  };
+
+  // 오염도 상태에 맞춰 아이콘을 선택해주는 함수
+  const getContaminationIcon = (status) => {
+    switch (status) {
+      case "good":
+        return GoodIcon;
+      case "normal":
+        return NormalIcon;
+      case "bad":
+        return BadIcon;
+      default:
+        return GoodIcon;
+    }
+  };
+
+  // 💡 [신규] 오염도 상태에 맞춰 툴팁 텍스트를 반환해주는 함수
+  const getContaminationText = (status) => {
+    switch (status) {
+      case "good":
+        return "오염도 좋음";
+      case "normal":
+        return "오염도 보통";
+      case "bad":
+        return "오염도 나쁨";
+      default:
+        return "오염도 좋음";
+    }
+  };
+
+  // 결과 저장 트리거 핸들러
+  const handleSaveResult = async () => {
+    if (isSaving) return;
+
+    try {
+      setIsSaving(true);
+
+      const payload = {
+        userId: localStorage.getItem("userId"),
+        imageUrl: result.imageUrl || capturedImage,
+        itemName: result.itemName || result.item,
+        item: result.item || result.itemName,
+        primaryMaterial: result.primaryMaterial,
+        isRecyclable: result.isRecyclable,
+        disposalMethodSummary: result.disposalMethodSummary,
+        disposalSteps: result.disposalSteps,
+        aiSummary: result.aiSummary,
+        contaminationStatus: result.contaminationStatus || "good",
+        confidence: result.confidence || 90,
+      };
+
+      const response = await fetch(`${SPRING_API_BASE}/api/analysis`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        capturedImage: null,
-    };
+        body: JSON.stringify(payload),
+      });
 
-    // 오염도 상태에 맞춰 아이콘을 선택해주는 함수
-    const getContaminationIcon = (status) => {
-        switch (status) {
-            case "good": return GoodIcon;
-            case "normal": return NormalIcon;
-            case "bad": return BadIcon;
-            default: return GoodIcon;
-        }
-    };
+      const data = await response.json().catch(() => ({}));
 
-    // 💡 [신규] 오염도 상태에 맞춰 툴팁 텍스트를 반환해주는 함수
-    const getContaminationText = (status) => {
-        switch (status) {
-            case "good": return "오염도 좋음";
-            case "normal": return "오염도 보통";
-            case "bad": return "오염도 나쁨";
-            default: return "오염도 좋음";
-        }
-    };
+      if (!response.ok) {
+        throw new Error(data.message || "저장 요청에 실패했습니다.");
+      }
 
-    // 결과 저장 트리거 핸들러
-    const handleSaveResult = () => {
-        alert("결과가 저장되었습니다!");
-    };
+      alert(data.message || "결과가 저장되었습니다.");
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "저장에 실패했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  const disposalSteps = result.disposalMethodSummary
+    ? result.disposalMethodSummary.split("\n")
+    : [];
 
-    return (
-        <Container>
-            <Header>
-                <BackBtn onClick={() => navigate(-1)}><BackIconImg src={BackIcon} alt="Back" /></BackBtn>
-                <Title>{result.item}</Title>
-            </Header>
+  const parseMaterialProbabilities = (text) => {
+    if (!text) return [];
 
-            <VisualSection>
-                <ImageFrame>
-                    <CapturedImage src={capturedImage || "https://via.placeholder.com/200"} alt="Captured" />
-                </ImageFrame>
-                <Character src={BiumResultImg} alt="Mascot" />
-            </VisualSection>
+    const matches = [...text.matchAll(/label=([^,}]+), percent=([\d.]+)/g)];
 
-            <AnalysisCard>
-                <CardTitle>재질 분석</CardTitle>
-                
-                <ChartWrapper>
-                    <DonutChartContainer>
-                        <DonutChart>
-                            <ChartCenter>
-                                <EcoLabel src={RecoIcon} alt="RecoIcon" />
-                            </ChartCenter>
-                        </DonutChart>
-                    </DonutChartContainer>
-                    
-                    <Legend>
-                        <LegendItem><Dot color="#53B175" /> 플라스틱</LegendItem>
-                        <LegendItem><Dot color="#1E3A2F" /> 유리</LegendItem>
-                        <LegendItem><Dot color="#D3D3D3" /> 기타</LegendItem>
-                    </Legend>
-                </ChartWrapper>
-                
-                <EmotionIcon 
-                    src={getContaminationIcon(result.contamination || "good")} 
-                    alt="contamination status" 
-                    onClick={() => setShowTooltip(!showTooltip)}
-                />
+    return matches.map((match) => ({
+      label: match[1],
+      percent: Number(match[2]),
+    }));
+  };
 
-                {showTooltip && (
-                    <ContaminationTooltip onClick={() => setShowTooltip(false)}>
-                        {getContaminationText(result.contamination || "good")}
-                    </ContaminationTooltip>
-                )}
-            </AnalysisCard>
+  const materialData = parseMaterialProbabilities(result.materialProbabilities);
+  const contaminationStatus = result.contaminationStatus || "good";
 
-            <GuideCard>
-                <GuideHeader>{result.item}은 이렇게 버려요.</GuideHeader>
-                <GuideList>
-                    <GuideItem>
-                        <div className="num">1. 내용물 완전히 비우기</div>
-                        <div className="desc">→ 병 안에 남은 음료를 완전히 비워요</div>
-                    </GuideItem>
-                    <GuideItem>
-                        <div className="num">2. 라벨 분리</div>
-                        <div className="desc">→ 병에 붙어 있는 비닐 라벨을 떼어내서 따로 버려요</div>
-                    </GuideItem>
-                    <GuideItem>
-                        <div className="num">3. 찌그러뜨리기</div>
-                        <div className="desc">→ 부피를 줄이기 위해 찌그러트려요</div>
-                    </GuideItem>
-                    <GuideItem>
-                        <div className="num">4. 뚜껑 닫아서 배출</div>
-                        <div className="desc">→ 부피를 유지하기 위해 뚜껑을 닫아 버려요</div>
-                    </GuideItem>
-                </GuideList>
-            </GuideCard>
+  const plastic =
+    materialData.find((m) => m.label === "플라스틱")?.percent || 0;
+  const glass = materialData.find((m) => m.label === "유리")?.percent || 0;
+  const metal = materialData.find((m) => m.label === "금속")?.percent || 0;
+  const other = materialData.find((m) => m.label === "기타")?.percent || 0;
 
-            <ActionButtonGroup>
-                <ActionButton onClick={handleSaveResult}>결과 저장</ActionButton>
-                <ActionButton onClick={() => navigate("/additional-question")}>추가 질문</ActionButton>
-            </ActionButtonGroup>
+  const firstEnd = plastic;
+  const secondEnd = plastic + glass;
+  const thirdEnd = plastic + glass + metal;
 
-            <ChatbotBtn onClick={() => navigate("/chatbot")}>
-                <ChatIconImg src={ChatIcon} alt="ChatIcon" />
-                <ChatText>
-                    <span className="top-msg">아직 잘 모르겠다면?</span>
-                    <span className="bottom-msg">
-                        챗봇에게 물어보기 <span className="arrow">→</span>
-                    </span>
-                </ChatText>
-            </ChatbotBtn>
+  return (
+    <Container>
+      <Header>
+        <BackBtn onClick={() => navigate(-1)}>
+          <BackIconImg src={BackIcon} alt="Back" />
+        </BackBtn>
+        <Title>{result.itemName || result.item}</Title>
+      </Header>
 
-            {/* 네브바 하단 고정 */}
-            <BottomNavWrapper>
-                <BottomNav />
-            </BottomNavWrapper>
-        </Container>
-    );
+      <VisualSection>
+        <ImageFrame>
+          <CapturedImage
+            src={capturedImage || "https://via.placeholder.com/200"}
+            alt="Captured"
+          />
+        </ImageFrame>
+        <Character src={BiumResultImg} alt="Mascot" />
+      </VisualSection>
+
+      <AnalysisCard>
+        <CardTitle>재질 분석</CardTitle>
+
+        <ChartWrapper>
+          <DonutChartContainer>
+            <DonutChart
+              style={{
+                background: `conic-gradient(
+      #53B175 0% ${firstEnd}%,
+      #1E3A2F ${firstEnd}% ${secondEnd}%,
+      #8A8A8A ${secondEnd}% ${thirdEnd}%,
+      #D3D3D3 ${thirdEnd}% 100%
+    )`,
+              }}
+            >
+              <ChartCenter>
+                <EcoLabel src={RecoIcon} alt="RecoIcon" />
+              </ChartCenter>
+            </DonutChart>
+          </DonutChartContainer>
+
+          <Legend>
+            <LegendItem>
+              <Dot color="#53B175" /> 플라스틱
+            </LegendItem>
+            <LegendItem>
+              <Dot color="#1E3A2F" /> 유리
+            </LegendItem>
+            <LegendItem>
+              <Dot color="#D3D3D3" /> 기타
+            </LegendItem>
+          </Legend>
+        </ChartWrapper>
+
+        <EmotionIcon
+          src={getContaminationIcon(contaminationStatus)}
+          alt="contamination status"
+          onClick={() => setShowTooltip(!showTooltip)}
+        />
+
+        {showTooltip && (
+          <ContaminationTooltip onClick={() => setShowTooltip(false)}>
+            {getContaminationText(contaminationStatus)}
+          </ContaminationTooltip>
+        )}
+      </AnalysisCard>
+
+      <GuideCard>
+        <GuideHeader>
+          {" "}
+          {result.itemName || result.item}은 이렇게 버려요.
+        </GuideHeader>
+        <GuideList>
+          {disposalSteps.length > 0 ? (
+            disposalSteps.map((step, index) => (
+              <GuideItem key={index}>
+                <div className="num">{step}</div>
+              </GuideItem>
+            ))
+          ) : (
+            <GuideItem>
+              <div className="num">분리배출 방법을 불러오는 중...</div>
+            </GuideItem>
+          )}
+        </GuideList>
+      </GuideCard>
+
+      <ActionButtonGroup>
+        <ActionButton onClick={handleSaveResult}>
+          {isSaving ? "저장 중..." : "결과 저장"}
+        </ActionButton>
+        <ActionButton
+          onClick={() =>
+            navigate("/additional-question", {
+              state: {
+                result,
+                capturedImage,
+                questionType: "vinyl_plastic",
+              },
+            })
+          }
+        >
+          추가 질문
+        </ActionButton>
+      </ActionButtonGroup>
+
+      <ChatbotBtn onClick={() => navigate("/chatbot")}>
+        <ChatIconImg src={ChatIcon} alt="ChatIcon" />
+        <ChatText>
+          <span className="top-msg">아직 잘 모르겠다면?</span>
+          <span className="bottom-msg">
+            챗봇에게 물어보기 <span className="arrow">→</span>
+          </span>
+        </ChatText>
+      </ChatbotBtn>
+
+      {/* 네브바 하단 고정 */}
+      <BottomNavWrapper>
+        <BottomNav />
+      </BottomNavWrapper>
+    </Container>
+  );
 };
 
 /* ===== Styled Components ===== */
@@ -151,11 +261,11 @@ const Container = styled.div`
   margin: 0 auto;
   background-color: #fff;
   padding: 20px;
-  padding-bottom: 140px; 
+  padding-bottom: 140px;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: "Pretendard", sans-serif;
   position: relative;
   min-height: 100vh;
   box-sizing: border-box;
@@ -184,10 +294,10 @@ const Title = styled.h1`
   flex: 1;
   text-align: center;
   font-size: 32px;
-  color: #53B175;
+  color: #53b175;
   font-weight: 800;
   margin-right: 24px;
-  font-family: 'Paperlogy-7Bold', sans-serif;
+  font-family: "Paperlogy-7Bold", sans-serif;
 `;
 
 const VisualSection = styled.div`
@@ -201,7 +311,7 @@ const VisualSection = styled.div`
 const ImageFrame = styled.div`
   width: 220px;
   height: 220px;
-  border: 3px solid #53B175;
+  border: 3px solid #53b175;
   border-radius: 20px;
   overflow: hidden;
 `;
@@ -221,11 +331,11 @@ const Character = styled.img`
 `;
 
 const AnalysisCard = styled.div`
-  position: relative; 
-  border: 1px solid #E0E0E0;
+  position: relative;
+  border: 1px solid #e0e0e0;
   border-radius: 20px;
   padding: 20px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
 `;
 
 const CardTitle = styled.div`
@@ -234,13 +344,13 @@ const CardTitle = styled.div`
   margin-bottom: 10px;
   text-align: left;
   color: #272727;
-  font-family: 'Paperlogy-6SemiBold', sans-serif;
+  font-family: "Paperlogy-6SemiBold", sans-serif;
 `;
 
 const ChartWrapper = styled.div`
   display: flex;
   flex-direction: column;
-  align-items: center; 
+  align-items: center;
   gap: 20px;
   width: 100%;
 `;
@@ -255,7 +365,6 @@ const DonutChart = styled.div`
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: conic-gradient(#53B175 0% 75%, #1E3A2F 75% 85%, #D3D3D3 85% 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -272,7 +381,7 @@ const ChartCenter = styled.div`
 `;
 
 const EcoLabel = styled.img`
-    position: absolute;
+  position: absolute;
 `;
 
 const EmotionIcon = styled.img`
@@ -283,7 +392,7 @@ const EmotionIcon = styled.img`
   height: 38px;
   z-index: 10;
   cursor: pointer;
-  
+
   transition: transform 0.1s ease;
   &:active {
     transform: scale(0.95); /* 누를 때 들어가는 효과 */
@@ -292,9 +401,9 @@ const EmotionIcon = styled.img`
 
 const ContaminationTooltip = styled.div`
   position: absolute;
-  left: 65px;    
-  bottom: 18px;  
-  
+  left: 65px;
+  bottom: 18px;
+
   background-color: #e1e1e1;
   color: #6b6b6b;
   font-size: 13px;
@@ -305,7 +414,7 @@ const ContaminationTooltip = styled.div`
   z-index: 20;
   cursor: pointer;
   white-space: nowrap;
-  font-family: 'Paperlogy-5Medium', sans-serif;
+  font-family: "Paperlogy-5Medium", sans-serif;
 
   &::after {
     content: "";
@@ -340,11 +449,11 @@ const Dot = styled.span`
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: ${props => props.color};
+  background-color: ${(props) => props.color};
 `;
 
 const GuideCard = styled.div`
-  border: 2px solid #53B175;
+  border: 2px solid #53b175;
   border-radius: 20px;
   padding: 20px;
 `;
@@ -355,7 +464,7 @@ const GuideHeader = styled.div`
   margin-bottom: 10px;
   text-align: left;
   color: #272727;
-  font-family: 'Paperlogy-6SemiBold', sans-serif;
+  font-family: "Paperlogy-6SemiBold", sans-serif;
 `;
 
 const GuideList = styled.div`
@@ -367,17 +476,17 @@ const GuideList = styled.div`
 const GuideItem = styled.div`
   text-align: left;
   .num {
-    color: #53B175;
+    color: #53b175;
     font-weight: bold;
     font-size: 15px;
-    font-family: 'Paperlogy-6SemiBold', sans-serif;
+    font-family: "Paperlogy-6SemiBold", sans-serif;
   }
   .desc {
     color: #272727;
     font-size: 13px;
     font-weight: bold;
     margin-top: -8px;
-    font-family: 'Paperlogy-6SemiBold', sans-serif;
+    font-family: "Paperlogy-6SemiBold", sans-serif;
   }
 `;
 
@@ -390,7 +499,7 @@ const ActionButtonGroup = styled.div`
 
 const ActionButton = styled.div`
   flex: 1;
-  background-color: #EAEAEA;
+  background-color: #eaeaea;
   color: #333333;
   font-size: 16px;
   font-weight: 700;
@@ -398,7 +507,7 @@ const ActionButton = styled.div`
   border-radius: 16px;
   text-align: center;
   cursor: pointer;
-  font-family: 'Paperlogy-6SemiBold', sans-serif;
+  font-family: "Paperlogy-6SemiBold", sans-serif;
   transition: background 0.2s ease;
 
   &:active {
@@ -407,12 +516,12 @@ const ActionButton = styled.div`
 `;
 
 const ChatbotBtn = styled.div`
-  background-color: #53B175;
+  background-color: #53b175;
   color: #fff;
   padding: 15px 25px;
   border-radius: 20px;
   display: flex;
-  align-items: center; 
+  align-items: center;
   justify-content: flex-start;
   gap: 15px;
   cursor: pointer;
@@ -427,10 +536,10 @@ const ChatIconImg = styled.img`
 
 const ChatText = styled.div`
   display: flex;
-  flex-direction: column; 
+  flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  font-family: 'Paperlogy-6SemiBold', sans-serif;
+  font-family: "Paperlogy-6SemiBold", sans-serif;
 
   .top-msg {
     font-size: 12px;
@@ -445,7 +554,7 @@ const ChatText = styled.div`
     margin-top: -10px;
     gap: 5px;
   }
-  
+
   .arrow {
     font-size: 16px;
   }

@@ -1,6 +1,8 @@
 import styled from "styled-components"
 import bium from "../assets/loading.gif"
-import { useNavigate } from "react-router-dom"
+import { useEffect } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
+import { getRequiredEnv } from "../config/env"
 
 const Container = styled.div`
   display: flex;
@@ -45,20 +47,108 @@ const BackButton = styled.button`
   left: 24px;
 `
 
-const Loading = () => {
-    const navigate = useNavigate()
+const FASTAPI_BASE = getRequiredEnv("VITE_API_BASE_URL")
 
-    return (
-        <Container>
-            <BackButton onClick={() => navigate(-1)}>{"<"}</BackButton>
-            <Image src={bium} alt="비움 캐릭터" />
-            <Title>비움이가 분리배출 방법을 찾고있어요</Title>
-            <SubTitle>
-                ai 비움이가 분리배출 방법을 찾고있어요<br />
-                앱을 종료하지 마시고 잠깐만 기다려 주세요
-            </SubTitle>
-        </Container>
-    )
+const normalizeResult = (data) => {
+  const steps = data.disposal_steps || data.disposalSteps || []
+
+  return {
+    ...data,
+    itemName: data.waste_type_ko || data.itemName || data.item,
+    item: data.waste_type_ko || data.itemName || data.item,
+    primaryMaterial: data.primary_material || data.material,
+    aiSummary: data.ai_summary || data.summary,
+    disposalSteps: steps,
+    disposalMethodSummary: steps.join("\n"),
+    contaminationStatus:
+      data.contamination?.level === "clean"
+        ? "good"
+        : data.contamination?.level === "low"
+        ? "normal"
+        : data.contamination?.level === "high"
+        ? "bad"
+        : "good",
+    isRecyclable: data.recyclable?.possible ?? true,
+    confidence: Math.round((data.confidence || 0.9) * 100),
+  }
+}
+
+const Loading = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const {
+    mode,
+    file,
+    previewImage,
+    result,
+    capturedImage,
+    additionalAnswers,
+    questionType,
+  } = location.state || {}
+
+  useEffect(() => {
+    const analyze = async () => {
+      const formData = new FormData()
+      formData.append("image", file)
+
+      const response = await fetch(`${FASTAPI_BASE}/api/v1/materials/analyze`, {
+        method: "POST",
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      navigate("/result", {
+        state: {
+          result: normalizeResult(data),
+          capturedImage: previewImage,
+        },
+      })
+    }
+
+    const reanalyze = async () => {
+      const response = await fetch(`${FASTAPI_BASE}/api/v1/materials/reanalyze`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          previous_result: result,
+          additional_answers: additionalAnswers,
+          question_type: questionType,
+        }),
+      })
+
+      const data = await response.json()
+
+      navigate("/result", {
+        state: {
+          result: normalizeResult(data),
+          capturedImage,
+        },
+      })
+    }
+
+    if (mode === "analyze") analyze()
+    if (mode === "reanalyze") reanalyze()
+  }, [])
+
+  return (
+    <Container>
+      <BackButton onClick={() => navigate(-1)}>{"<"}</BackButton>
+      <Image src={bium} alt="비움 캐릭터" />
+      <Title>
+        {mode === "reanalyze"
+          ? "비움이가 다시 분석하고 있어요"
+          : "비움이가 분리배출 방법을 찾고있어요"}
+      </Title>
+      <SubTitle>
+        AI 비움이가 결과를 분석하고 있어요<br />
+        앱을 종료하지 마시고 잠깐만 기다려 주세요
+      </SubTitle>
+    </Container>
+  )
 }
 
 export default Loading
