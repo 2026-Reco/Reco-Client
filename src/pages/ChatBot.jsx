@@ -8,6 +8,46 @@ import { sendChatToGemini } from "../services/gemini";
 const nowTime = () =>
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+const STEP_LINE_RE = /^(\s*\d+\.\s+)([^:：\n]+?)([:：])(\s*)(.*)$/;
+
+const stripInlineMd = (s) =>
+    String(s ?? "")
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/__(.+?)__/g, "$1")
+        .replace(/`+([^`\n]+?)`+/g, "$1");
+
+const FormattedText = ({ text }) => {
+    const lines = String(text ?? "").split(/\r?\n/);
+    return (
+        <>
+            {lines.map((rawLine, idx) => {
+                const line = stripInlineMd(rawLine);
+                const m = line.match(STEP_LINE_RE);
+                const isLast = idx === lines.length - 1;
+                if (m) {
+                    const [, num, label, colon, sp, rest] = m;
+                    return (
+                        <React.Fragment key={idx}>
+                            {num}
+                            <strong>{label}</strong>
+                            {colon}
+                            {sp}
+                            {rest}
+                            {!isLast && <br />}
+                        </React.Fragment>
+                    );
+                }
+                return (
+                    <React.Fragment key={idx}>
+                        {line}
+                        {!isLast && <br />}
+                    </React.Fragment>
+                );
+            })}
+        </>
+    );
+};
+
 const ChatbotPage = () => {
     const navigate = useNavigate();
     const [inputValue, setInputValue] = useState("");
@@ -118,7 +158,9 @@ const ChatbotPage = () => {
                         <UserMessage key={msg.id}>
                             {/* 사용자일 때는 시간이 왼쪽! */}
                             <TimeStamp>{msg.time}</TimeStamp>
-                            <MessageBubble $user>{msg.text}</MessageBubble>
+                            <MessageBubble $user>
+                                <FormattedText text={msg.text} />
+                            </MessageBubble>
                         </UserMessage>
                     ) : (
                         <BiumMessageSection key={msg.id}>
@@ -126,7 +168,9 @@ const ChatbotPage = () => {
                             <BiumContent>
                                 <BiumName>비움이</BiumName>
                                 <BiumResponse>
-                                    <MessageBubble>{msg.text}</MessageBubble>
+                                    <MessageBubble>
+                                        <FormattedText text={msg.text} />
+                                    </MessageBubble>
                                     {/* 비움이일 때는 시간이 오른쪽! */}
                                     <TimeStamp>{msg.time}</TimeStamp>
                                 </BiumResponse>
@@ -255,13 +299,23 @@ const BiumResponse = styled.div`
 
 const MessageBubble = styled.div`
   max-width: 240px;
-  padding: 12px 10px;
-  font-size: 12px;
-  line-height: 1.3;
+  padding: 12px 12px;
+  font-size: 13px;
+  line-height: 1.55;
   text-align: left;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
   border-radius: ${props => props.$user ? "20px 20px 2px 20px" : "2px 20px 20px 20px"};
   background-color: ${props => props.$user ? "#53B175" : "#efefef"};
   color: ${props => props.$user ? "#fff" : "#272727"};
+
+  strong {
+    font-weight: 700;
+    color: ${props => props.$user ? "#fff" : "#1f7a3d"};
+  }
+
+  br + br { display: none; }
 `;
 
 const TimeStamp = styled.span`
