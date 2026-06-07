@@ -97,7 +97,7 @@ const WarningTitle = styled.div`
 `;
 
 const WarningList = styled.ul`
-  list-style: none; /* 불렛 제거 */
+  list-style: none; 
   padding: 0;
   margin: 0;
   

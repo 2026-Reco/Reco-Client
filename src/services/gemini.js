@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+import { getRequiredEnv } from "../config/env";
+
+const API_BASE = getRequiredEnv("VITE_API_BASE_URL");
 const ENDPOINT = `${API_BASE}/api/v1/chatbot/message`;
 
 /**
