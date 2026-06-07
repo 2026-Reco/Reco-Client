@@ -10,6 +10,46 @@ const SPRING_API_BASE = import.meta.env.VITE_SPRING_API_BASE_URL;
 const nowTime = () =>
   new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
+const STEP_LINE_RE = /^(\s*\d+\.\s+)([^:：\n]+?)([:：])(\s*)(.*)$/;
+
+const stripInlineMd = (s) =>
+    String(s ?? "")
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/__(.+?)__/g, "$1")
+        .replace(/`+([^`\n]+?)`+/g, "$1");
+
+const FormattedText = ({ text }) => {
+    const lines = String(text ?? "").split(/\r?\n/);
+    return (
+        <>
+            {lines.map((rawLine, idx) => {
+                const line = stripInlineMd(rawLine);
+                const m = line.match(STEP_LINE_RE);
+                const isLast = idx === lines.length - 1;
+                if (m) {
+                    const [, num, label, colon, sp, rest] = m;
+                    return (
+                        <React.Fragment key={idx}>
+                            {num}
+                            <strong>{label}</strong>
+                            {colon}
+                            {sp}
+                            {rest}
+                            {!isLast && <br />}
+                        </React.Fragment>
+                    );
+                }
+                return (
+                    <React.Fragment key={idx}>
+                        {line}
+                        {!isLast && <br />}
+                    </React.Fragment>
+                );
+            })}
+        </>
+    );
+};
+
 const ChatbotPage = () => {
   const navigate = useNavigate();
   const [inputValue, setInputValue] = useState("");
@@ -224,8 +264,90 @@ const ChatbotPage = () => {
             </BiumContent>
           </BiumMessageSection>
         )}
-        <div ref={chatEndRef} />
+        <div ref={
+        
+        } />
       </ChatArea>
+
+return (
+  <Container>
+    <Header>
+      <BackBtn onClick={() => navigate(-1)}>
+        <BackIconImg src={BackIcon} alt="Back" />
+      </BackBtn>
+      <HeaderTitle>비움이</HeaderTitle>
+    </Header>
+
+    <ChatArea>
+      {messages.map((msg) =>
+        msg.sender === "user" ? (
+          <UserMessage key={msg.id}>
+            <TimeStamp>{msg.time}</TimeStamp>
+            <MessageBubble $user>
+              <FormattedText text={msg.text} />
+            </MessageBubble>
+          </UserMessage>
+        ) : (
+          <BiumMessageSection key={msg.id}>
+            <BiumProfile src={BiumChatImg} alt="비움이" />
+            <BiumContent>
+              <BiumName>비움이</BiumName>
+              <BiumResponse>
+                <MessageBubble>
+                  <FormattedText text={msg.text} />
+                </MessageBubble>
+                <TimeStamp>{msg.time}</TimeStamp>
+              </BiumResponse>
+            </BiumContent>
+          </BiumMessageSection>
+        ),
+      )}
+
+      {isLoading && (
+        <BiumMessageSection>
+          <BiumProfile src={BiumChatImg} alt="비움이" />
+          <BiumContent>
+            <BiumName>비움이</BiumName>
+            <BiumResponse>
+              <MessageBubble>입력 중...</MessageBubble>
+            </BiumResponse>
+          </BiumContent>
+        </BiumMessageSection>
+      )}
+
+      <div ref={chatEndRef} />
+    </ChatArea>
+
+    <InputWrapper>
+      <InputContainer>
+        <ChatInput
+          placeholder={
+            isLoading ? "비움이가 응답 중이에요..." : "비움이에게 물어보기"
+          }
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage();
+            }
+          }}
+          disabled={isLoading}
+        />
+
+        <SendBtn
+          src={ChatSelectIcon}
+          alt="전송"
+          onClick={handleSendMessage}
+          style={{
+            opacity: isLoading ? 0.5 : 1,
+            pointerEvents: isLoading ? "none" : "auto",
+          }}
+        />
+      </InputContainer>
+    </InputWrapper>
+  </Container>
+);
 
       <InputWrapper>
         <InputContainer>
@@ -347,14 +469,32 @@ const BiumResponse = styled.div`
 
 const MessageBubble = styled.div`
   max-width: 240px;
-  padding: 12px 10px;
-  font-size: 12px;
-  line-height: 1.3;
+  padding: 12px 12px;
+  font-size: 13px;
+  line-height: 1.55;
   text-align: left;
+
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+
   border-radius: ${(props) =>
     props.$user ? "20px 20px 2px 20px" : "2px 20px 20px 20px"};
-  background-color: ${(props) => (props.$user ? "#53B175" : "#efefef")};
-  color: ${(props) => (props.$user ? "#fff" : "#272727")};
+
+  background-color: ${(props) =>
+    props.$user ? "#53B175" : "#efefef"};
+
+  color: ${(props) =>
+    props.$user ? "#fff" : "#272727"};
+
+  strong {
+    font-weight: 700;
+    color: ${(props) => (props.$user ? "#fff" : "#1f7a3d")};
+  }
+
+  br + br {
+    display: none;
+  }
 `;
 
 const TimeStamp = styled.span`
