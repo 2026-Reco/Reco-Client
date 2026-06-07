@@ -1,27 +1,48 @@
-import { useEffect } from "react"
-import { useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { useEffect } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { getRequiredEnv } from "../config/env";
 
 const OAuthCallback = () => {
-  const navigate = useNavigate()
-  const { provider } = useParams()
-  const [searchParams] = useSearchParams()
+  const navigate = useNavigate();
+  const { provider } = useParams();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    const code = searchParams.get("code")
+    const login = async () => {
+      const code = searchParams.get("code");
 
-    if (!code) {
-      alert("SNS 로그인에 실패했습니다.")
-      navigate("/login")
-      return
-    }
+      if (!code) {
+        alert("SNS 로그인에 실패했습니다.");
+        navigate("/login");
+        return;
+      }
 
-    console.log("provider:", provider)
-    console.log("code:", code)
+      try {
+        const SPRING_API_BASE = getRequiredEnv("VITE_SPRING_API_BASE_URL");
 
-    navigate("/")
-  }, [provider, searchParams, navigate])
+        const res = await fetch(
+          `${SPRING_API_BASE}/api/auth/${provider}/callback?code=${code}`
+        );
 
-  return <div>로그인 중...</div>
-}
+        if (!res.ok) throw new Error("소셜 로그인 실패");
 
-export default OAuthCallback
+        const user = await res.json();
+
+        localStorage.setItem("userId", user.id);
+        localStorage.setItem("username", user.username);
+
+        navigate("/");
+      } catch (err) {
+        console.error("SNS 로그인 오류:", err);
+        alert("SNS 로그인 처리 중 오류가 발생했습니다.");
+        navigate("/login");
+      }
+    };
+
+    login();
+  }, [provider, searchParams, navigate]);
+
+  return <div>로그인 중...</div>;
+};
+
+export default OAuthCallback;

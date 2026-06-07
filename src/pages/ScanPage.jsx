@@ -9,7 +9,7 @@ const ScanPage = () => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const canvasRef = useRef(null);
-  const fileInputRef = useRef(null); 
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,6 +35,16 @@ const ScanPage = () => {
       }
     };
   }, []);
+  
+  const analyzeImage = async (file, previewImage) => {
+    navigate("/loading", {
+      state: {
+        mode: "analyze",
+        file,
+        previewImage,
+      },
+    });
+  };
 
   const handleCapture = () => {
     const video = videoRef.current;
@@ -49,12 +59,19 @@ const ScanPage = () => {
 
     const base64ImageData = canvas.toDataURL("image/jpeg", 0.8);
 
-    navigate("/result", {
-      state: {
-        result: { item: "플라스틱 병", confidence: 92 },
-        capturedImage: base64ImageData,
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) return;
+
+        const file = new File([blob], "capture.jpg", {
+          type: "image/jpeg",
+        });
+
+        await analyzeImage(file, base64ImageData);
       },
-    });
+      "image/jpeg",
+      0.8,
+    );
   };
 
   const handleUploadClick = () => {
@@ -68,17 +85,13 @@ const ScanPage = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64ImageData = reader.result;
 
-      navigate("/result", {
-        state: {
-          result: { item: "플라스틱 병", confidence: 95 }, 
-          capturedImage: base64ImageData,
-        },
-      });
+    reader.onloadend = async () => {
+      const base64ImageData = reader.result;
+      await analyzeImage(file, base64ImageData);
     };
-    reader.readAsDataURL(file); 
+
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -87,9 +100,7 @@ const ScanPage = () => {
         <BackIconImg src={BackIcon} alt="Back" />
       </BackBtn>
 
-      <GuideText>
-        화면 가운데에 사물을 맞춰 주세요.
-      </GuideText>
+      <GuideText>화면 가운데에 사물을 맞춰 주세요.</GuideText>
 
       <Video ref={videoRef} autoPlay playsInline muted />
       <ScanFrame />
@@ -101,9 +112,7 @@ const ScanPage = () => {
         onChange={handleFileChange}
       />
 
-      <UploadButton onClick={handleUploadClick}>
-        Upload photo
-      </UploadButton>
+      <UploadButton onClick={handleUploadClick}>Upload photo</UploadButton>
 
       <HiddenCanvas ref={canvasRef} />
 
@@ -118,7 +127,7 @@ const Container = styled.div`
   width: 393px;
   height: 100vh;
   margin: 0 auto;
-  background-color: #727272; 
+  background-color: #727272;
   overflow: hidden;
 `;
 
@@ -142,13 +151,13 @@ const BackBtn = styled.div`
   position: absolute;
   top: 40px;
   left: 20px;
-  z-index: 10; 
-  
+  z-index: 10;
+
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  padding: 8px; 
+  padding: 8px;
 `;
 
 /* 📍 SVG 아이콘 크기 제어 */
@@ -159,7 +168,7 @@ const BackIconImg = styled.img`
 
 const GuideText = styled.div`
   position: absolute;
-  top: 240px; 
+  top: 240px;
   width: 100%;
   text-align: center;
   color: white;
@@ -167,7 +176,7 @@ const GuideText = styled.div`
   font-weight: 700;
   z-index: 10;
   line-height: 1.4;
-  font-family: 'Pretendard', sans-serif;
+  font-family: "Pretendard", sans-serif;
 `;
 
 const ScanFrame = styled.div`
@@ -175,11 +184,11 @@ const ScanFrame = styled.div`
   top: 48%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 288px; 
+  width: 288px;
   height: 288px;
   border: 3.5px solid #53b175;
   border-radius: 24px;
-  box-shadow: 0 0 0 9999px rgba(40, 40, 40, 0.4); 
+  box-shadow: 0 0 0 9999px rgba(40, 40, 40, 0.4);
   z-index: 5;
   pointer-events: none;
 `;
@@ -189,22 +198,22 @@ const UploadButton = styled.div`
   top: 660px;
   left: 50%;
   transform: translateX(-50%);
-  
+
   background-color: #53b175;
   color: #ffffff;
-  font-family: 'Pretendard', sans-serif;
+  font-family: "Pretendard", sans-serif;
   font-size: 16px;
   font-weight: 500;
-  
+
   padding: 12px 24px;
   border-radius: 12px;
   box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
-  
+
   cursor: pointer;
   z-index: 10;
   text-align: center;
   white-space: nowrap;
-  
+
   transition: background 0.2s ease-in-out;
   &:active {
     background-color: #439460;

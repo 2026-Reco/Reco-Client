@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { CommonLayout } from "../components/CommonLayout";
@@ -13,6 +13,7 @@ import GlassIcon from "../assets/img/glassIcon.svg";
 import FtIcon from "../assets/img/ftIcon.svg";
 import CanIcon from "../assets/img/canIcon.svg";
 import TrashIcon from "../assets/img/trashIcon.svg";
+import { getRequiredEnv } from "../config/env";
 
 /* ===== Styled Components ===== */
 const Main = styled.div`
@@ -307,6 +308,7 @@ const ChatbotBadgeCount = styled.div`
 /* ===== Main Component ===== */
 const Home = () => {
   const [currentAddress, setCurrentAddress] = useState("위치 탐색 중...");
+  const regionLookupUnavailableRef = useRef(false);
   const navigate = useNavigate();
 
   const [lastChatMessage, setLastChatMessage] = useState({
@@ -316,62 +318,117 @@ const Home = () => {
   });
   
   useEffect(() => {
-    const container = document.getElementById("kakao-map");
-    if (!container || !window.kakao) return;
+    let isMounted = true;
 
-    const defaultCoords = new window.kakao.maps.LatLng(37.4781, 126.9517);
+    const loadKakaoMap = () =>
+      new Promise((resolve, reject) => {
+        try {
+          const kakaoMapKey = getRequiredEnv("VITE_KAKAO_MAP_KEY");
+          const existingScript = document.querySelector(
+            'script[src*="dapi.kakao.com/v2/maps/sdk.js"]'
+          );
 
-    const options = {
-      center: defaultCoords,
-      level: 5,
-    };
-
-    const map = new window.kakao.maps.Map(container, options);
-    const geocoder = new window.kakao.maps.services.Geocoder();
-
-    const searchAddrFromCoords = (coords, callback) => {
-      geocoder.coord2RegionCode(coords.getLng(), coords.getLat(), callback);
-    };
-
-    const displayCenterInfo = (result, status) => {
-      if (status === window.kakao.maps.services.Status.OK) {
-        for (let i = 0; i < result.length; i++) {
-          if (result[i].region_type === "H") {
-            setCurrentAddress(result[i].region_3depth_name);
-            break;
+          if (window.kakao?.maps) {
+            window.kakao.maps.load(resolve);
+            return;
           }
+
+          if (existingScript) {
+            existingScript.addEventListener("load", () => {
+              window.kakao.maps.load(resolve);
+            });
+            existingScript.addEventListener("error", reject);
+            return;
+          }
+
+          const script = document.createElement("script");
+          script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoMapKey}&autoload=false&libraries=services`;
+          script.async = true;
+          script.onload = () => window.kakao.maps.load(resolve);
+          script.onerror = reject;
+          document.head.appendChild(script);
+        } catch (error) {
+          reject(error);
         }
+      });
+
+    const initializeMap = () => {
+      const container = document.getElementById("kakao-map");
+      if (!container || !window.kakao || !isMounted) return;
+
+      const defaultCoords = new window.kakao.maps.LatLng(37.4781, 126.9517);
+
+      const options = {
+        center: defaultCoords,
+        level: 5,
+      };
+
+      const map = new window.kakao.maps.Map(container, options);
+      const geocoder = new window.kakao.maps.services.Geocoder();
+
+      const searchAddrFromCoords = (coords, callback) => {
+        if (regionLookupUnavailableRef.current) return;
+
+        geocoder.coord2RegionCode(coords.getLng(), coords.getLat(), callback);
+      };
+
+      const displayCenterInfo = (result, status) => {
+        if (status === window.kakao.maps.services.Status.OK) {
+          for (let i = 0; i < result.length; i++) {
+            if (result[i].region_type === "H") {
+              setCurrentAddress(result[i].region_3depth_name);
+              break;
+            }
+          }
+          return;
+        }
+
+        if (status === window.kakao.maps.services.Status.ERROR) {
+          regionLookupUnavailableRef.current = true;
+          setCurrentAddress("위치 확인 불가");
+        }
+      };
+
+      searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const currentPos = new window.kakao.maps.LatLng(lat, lon);
+
+            map.setCenter(currentPos);
+            searchAddrFromCoords(currentPos, displayCenterInfo);
+          },
+          (error) => {
+            console.error("GPS 위치 정보를 가져오는 데 실패했습니다.", error);
+            searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+          },
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
       }
+
+      window.kakao.maps.event.addListener(map, "idle", () => {
+        const centerCoords = map.getCenter();
+        searchAddrFromCoords(centerCoords, displayCenterInfo);
+      });
+
+      window.kakao.maps.event.addListener(map, "click", () => {
+        navigate("/location");
+      });
     };
 
-    searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+    loadKakaoMap()
+      .then(initializeMap)
+      .catch((error) => {
+        console.error(error);
+        setCurrentAddress("지도 설정 필요");
+      });
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-          const currentPos = new window.kakao.maps.LatLng(lat, lon);
-
-          map.setCenter(currentPos);
-          searchAddrFromCoords(currentPos, displayCenterInfo);
-        },
-        (error) => {
-          console.error("GPS 위치 정보를 가져오는 데 실패했습니다.", error);
-          searchAddrFromCoords(map.getCenter(), displayCenterInfo);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    }
-
-    window.kakao.maps.event.addListener(map, "idle", () => {
-      const centerCoords = map.getCenter();
-      searchAddrFromCoords(centerCoords, displayCenterInfo);
-    });
-
-    window.kakao.maps.event.addListener(map, "click", () => {
-      navigate("/location");
-    });
+    return () => {
+      isMounted = false;
+    };
   }, [navigate]);
 
   return (

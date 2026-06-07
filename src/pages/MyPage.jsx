@@ -148,6 +148,8 @@ const MyPage = () => {
   const [autoEmail, setAutoEmail] = useState(false)
 
   useEffect(() => {
+    const savedUsername = localStorage.getItem("username")
+    const savedUserId = localStorage.getItem("userId")
     const savedAutoSave = localStorage.getItem("autoSave")
     const savedAutoEmail = localStorage.getItem("autoEmail")
     const savedUserName = localStorage.getItem("userName")
@@ -156,6 +158,8 @@ const MyPage = () => {
       setUserName(savedUserName)
       setEditName(savedUserName)
     }
+
+    setUserName(savedUsername || savedUserId || "사용자 명")
 
     if (savedAutoSave !== null) {
       setAutoSave(savedAutoSave === "true")
@@ -197,6 +201,8 @@ const MyPage = () => {
   const handleLogout = () => {
     localStorage.removeItem("accessToken")
     localStorage.removeItem("refreshToken")
+    localStorage.removeItem("userId")
+    localStorage.removeItem("username")
     navigate("/login")
   }
 
