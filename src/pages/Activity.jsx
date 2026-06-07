@@ -358,7 +358,7 @@ const Activity = () => {
 
     const fetchActivity = async () => {
       try {
-        const response = await fetch(`${SPRING_API_BASE}/api/analysis/summary`);
+        const response = await fetch(`${SPRING_API_BASE}/api/analysis/summary/${savedUserId}`);
 
         if (!response.ok) {
           throw new Error("활동 요약을 불러오지 못했습니다.");
@@ -373,7 +373,7 @@ const Activity = () => {
 
     const fetchRecords = async () => {
       try {
-        const response = await fetch(`${SPRING_API_BASE}/api/analysis/list`);
+        const response = await fetch(`${SPRING_API_BASE}/api/analysis/list/${savedUserId}`);
 
         if (!response.ok) {
           throw new Error("활동 기록을 불러오지 못했습니다.");

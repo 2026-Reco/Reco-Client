@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { CommonLayout } from "../components/CommonLayout";
@@ -308,6 +308,7 @@ const ChatbotBadgeCount = styled.div`
 /* ===== Main Component ===== */
 const Home = () => {
   const [currentAddress, setCurrentAddress] = useState("위치 탐색 중...");
+  const regionLookupUnavailableRef = useRef(false);
   const navigate = useNavigate();
 
   const [lastChatMessage, setLastChatMessage] = useState({
@@ -366,6 +367,8 @@ const Home = () => {
       const geocoder = new window.kakao.maps.services.Geocoder();
 
       const searchAddrFromCoords = (coords, callback) => {
+        if (regionLookupUnavailableRef.current) return;
+
         geocoder.coord2RegionCode(coords.getLng(), coords.getLat(), callback);
       };
 
@@ -377,6 +380,12 @@ const Home = () => {
               break;
             }
           }
+          return;
+        }
+
+        if (status === window.kakao.maps.services.Status.ERROR) {
+          regionLookupUnavailableRef.current = true;
+          setCurrentAddress("위치 확인 불가");
         }
       };
 

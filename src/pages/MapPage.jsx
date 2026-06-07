@@ -391,6 +391,7 @@ const MapPage = () => {
   const mapInstanceRef = useRef(null);
   const markerListRef = useRef([]);
   const districtCacheRef = useRef(new Map());
+  const regionLookupUnavailableRef = useRef(false);
 
   const [keyword, setKeyword] = useState("");
   const [isOpen, setIsOpen] = useState(true);
@@ -441,6 +442,11 @@ const MapPage = () => {
 
   const getCurrentDistrict = (latitude, longitude) =>
     new Promise((resolve) => {
+      if (regionLookupUnavailableRef.current) {
+        resolve("");
+        return;
+      }
+
       if (!window.kakao?.maps?.services) {
         resolve("");
         return;
@@ -450,6 +456,10 @@ const MapPage = () => {
 
       geocoder.coord2RegionCode(longitude, latitude, (result, status) => {
         if (status !== window.kakao.maps.services.Status.OK) {
+          if (status === window.kakao.maps.services.Status.ERROR) {
+            regionLookupUnavailableRef.current = true;
+          }
+
           resolve("");
           return;
         }
@@ -465,6 +475,11 @@ const MapPage = () => {
 
   const getDistrictByCoords = (latitude, longitude) =>
     new Promise((resolve) => {
+      if (regionLookupUnavailableRef.current) {
+        resolve("");
+        return;
+      }
+
       const lat = Number(latitude);
       const lon = Number(longitude);
 
@@ -490,6 +505,10 @@ const MapPage = () => {
 
       geocoder.coord2RegionCode(lon, lat, (result, status) => {
         if (status !== window.kakao.maps.services.Status.OK) {
+          if (status === window.kakao.maps.services.Status.ERROR) {
+            regionLookupUnavailableRef.current = true;
+          }
+
           districtCacheRef.current.set(cacheKey, "");
           resolve("");
           return;
