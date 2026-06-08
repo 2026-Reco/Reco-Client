@@ -235,9 +235,10 @@ const ChatbotPage = () => {
         {messages.map((msg) =>
           msg.sender === "user" ? (
             <UserMessage key={msg.id}>
-              {/* 사용자일 때는 시간이 왼쪽! */}
               <TimeStamp>{msg.time}</TimeStamp>
-              <MessageBubble $user>{msg.text}</MessageBubble>
+              <MessageBubble $user>
+                <FormattedText text={msg.text} />
+              </MessageBubble>
             </UserMessage>
           ) : (
             <BiumMessageSection key={msg.id}>
@@ -245,14 +246,16 @@ const ChatbotPage = () => {
               <BiumContent>
                 <BiumName>비움이</BiumName>
                 <BiumResponse>
-                  <MessageBubble>{msg.text}</MessageBubble>
-                  {/* 비움이일 때는 시간이 오른쪽! */}
+                  <MessageBubble>
+                    <FormattedText text={msg.text} />
+                  </MessageBubble>
                   <TimeStamp>{msg.time}</TimeStamp>
                 </BiumResponse>
               </BiumContent>
             </BiumMessageSection>
-          ),
+          )
         )}
+        
         {isLoading && (
           <BiumMessageSection>
             <BiumProfile src={BiumChatImg} alt="비움이" />
@@ -264,90 +267,10 @@ const ChatbotPage = () => {
             </BiumContent>
           </BiumMessageSection>
         )}
-        <div ref={
         
-        } />
+        {/* 📍 빈 괄호 오타 수정 및 정상 하단 앵커 스크롤 연결 */}
+        <div ref={chatEndRef} />
       </ChatArea>
-
-return (
-  <Container>
-    <Header>
-      <BackBtn onClick={() => navigate(-1)}>
-        <BackIconImg src={BackIcon} alt="Back" />
-      </BackBtn>
-      <HeaderTitle>비움이</HeaderTitle>
-    </Header>
-
-    <ChatArea>
-      {messages.map((msg) =>
-        msg.sender === "user" ? (
-          <UserMessage key={msg.id}>
-            <TimeStamp>{msg.time}</TimeStamp>
-            <MessageBubble $user>
-              <FormattedText text={msg.text} />
-            </MessageBubble>
-          </UserMessage>
-        ) : (
-          <BiumMessageSection key={msg.id}>
-            <BiumProfile src={BiumChatImg} alt="비움이" />
-            <BiumContent>
-              <BiumName>비움이</BiumName>
-              <BiumResponse>
-                <MessageBubble>
-                  <FormattedText text={msg.text} />
-                </MessageBubble>
-                <TimeStamp>{msg.time}</TimeStamp>
-              </BiumResponse>
-            </BiumContent>
-          </BiumMessageSection>
-        ),
-      )}
-
-      {isLoading && (
-        <BiumMessageSection>
-          <BiumProfile src={BiumChatImg} alt="비움이" />
-          <BiumContent>
-            <BiumName>비움이</BiumName>
-            <BiumResponse>
-              <MessageBubble>입력 중...</MessageBubble>
-            </BiumResponse>
-          </BiumContent>
-        </BiumMessageSection>
-      )}
-
-      <div ref={chatEndRef} />
-    </ChatArea>
-
-    <InputWrapper>
-      <InputContainer>
-        <ChatInput
-          placeholder={
-            isLoading ? "비움이가 응답 중이에요..." : "비움이에게 물어보기"
-          }
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-          disabled={isLoading}
-        />
-
-        <SendBtn
-          src={ChatSelectIcon}
-          alt="전송"
-          onClick={handleSendMessage}
-          style={{
-            opacity: isLoading ? 0.5 : 1,
-            pointerEvents: isLoading ? "none" : "auto",
-          }}
-        />
-      </InputContainer>
-    </InputWrapper>
-  </Container>
-);
 
       <InputWrapper>
         <InputContainer>
@@ -380,8 +303,7 @@ return (
   );
 };
 
-// --- Styled Components (기존과 동일하되 가독성을 위해 유지) ---
-
+/* ===== Styled Components ===== */
 const Container = styled.div`
   width: 393px;
   height: 100vh;
@@ -432,7 +354,7 @@ const ChatArea = styled.div`
 const UserMessage = styled.div`
   align-self: flex-end;
   display: flex;
-  align-items: flex-end; /* 바닥 기준 정렬 */
+  align-items: flex-end; 
   gap: 8px;
 `;
 
@@ -454,6 +376,7 @@ const BiumContent = styled.div`
   align-items: flex-start;
   gap: 2px;
 `;
+
 const BiumName = styled.span`
   font-size: 12px;
   font-weight: 800;
