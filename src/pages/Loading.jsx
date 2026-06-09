@@ -49,17 +49,73 @@ const BackButton = styled.button`
 
 const FASTAPI_BASE = getRequiredEnv("VITE_API_BASE_URL")
 
+const normalizePercent = (value) => {
+  const num = Number(value)
+
+  if (!Number.isFinite(num)) return 0
+
+  if (num > 0 && num <= 1) {
+    return Math.round(num * 100)
+  }
+
+  return Math.round(num)
+}
+
 const normalizeResult = (data) => {
   const steps = data.disposal_steps || data.disposalSteps || []
 
+  const materialProbabilities =
+    data.materialProbabilities?.length > 0
+      ? data.materialProbabilities
+      : data.material_probabilities?.length > 0
+      ? data.material_probabilities
+      : data.materials?.length > 0
+      ? data.materials
+      : data.predictions?.length > 0
+      ? data.predictions
+      : data.summary?.length > 0
+      ? data.summary
+      : data.detail?.length > 0
+      ? data.detail
+      : [
+          {
+            label:
+              data.primary_material ||
+              data.material ||
+              "분석 결과",
+            percent: normalizePercent(data.confidence || 100),
+          },
+        ]
+
   return {
     ...data,
-    itemName: data.waste_type_ko || data.itemName || data.item,
-    item: data.waste_type_ko || data.itemName || data.item,
-    primaryMaterial: data.primary_material || data.material,
-    aiSummary: data.ai_summary || data.summary,
+
+    itemName:
+      data.waste_type_ko ||
+      data.itemName ||
+      data.item,
+
+    item:
+      data.waste_type_ko ||
+      data.itemName ||
+      data.item,
+
+    primaryMaterial:
+      data.primary_material ||
+      data.material,
+
+    materialProbabilities,
+
+    aiSummary:
+      data.ai_summary ||
+      data.aiSummary,
+
     disposalSteps: steps,
-    disposalMethodSummary: steps.join("\n"),
+
+    disposalMethodSummary:
+      data.disposalMethodSummary ||
+      steps.join("\n"),
+
     contaminationStatus:
       data.contamination?.level === "clean"
         ? "good"
@@ -68,8 +124,15 @@ const normalizeResult = (data) => {
         : data.contamination?.level === "high"
         ? "bad"
         : "good",
-    isRecyclable: data.recyclable?.possible ?? true,
-    confidence: Math.round((data.confidence || 0.9) * 100),
+
+    isRecyclable:
+      data.recyclable?.possible ??
+      data.isRecyclable ??
+      true,
+
+    confidence: normalizePercent(
+      data.confidence || 100
+    ),
   }
 }
 
@@ -98,10 +161,13 @@ const Loading = () => {
       })
 
       const data = await response.json()
+      const fixedResult = JSON.parse(
+        JSON.stringify(normalizeResult(data))
+      )
 
       navigate("/result", {
         state: {
-          result: normalizeResult(data),
+          result: fixedResult,
           capturedImage: previewImage,
         },
       })
@@ -121,10 +187,13 @@ const Loading = () => {
       })
 
       const data = await response.json()
+      const fixedResult = JSON.parse(
+        JSON.stringify(normalizeResult(data))
+      )
 
       navigate("/result", {
         state: {
-          result: normalizeResult(data),
+          result: fixedResult,
           capturedImage,
         },
       })

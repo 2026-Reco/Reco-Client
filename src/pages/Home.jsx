@@ -104,7 +104,7 @@ const Card = styled.div`
 
 const CategoryGrid = styled.div`
   position: absolute;
-  top: 305px; /* 검색바 영역 제외 후 최상단으로 재배치 */
+  top: 305px;
   left: 20px;
   width: 353px;
   display: flex;
@@ -130,16 +130,16 @@ const CategoryIcon = styled.div`
   width: 52px;
   height: 52px;
   margin: 0 auto 8px;
-  background-image: url(${props => props.img});
+  
+  background-image: url(${props => props.$img}); 
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
 `;
 
 const CategoryText = styled.div`
-  font-family: Paperlogy;
+  font-size: 12px;
   font-weight: 500;
-  font-size: 13px;
   color: #272727;
 `;
 
@@ -316,7 +316,7 @@ const Home = () => {
     time: "지금",
     unreadCount: 1
   });
-  
+
   useEffect(() => {
     let isMounted = true;
 
@@ -353,71 +353,107 @@ const Home = () => {
       });
 
     const initializeMap = () => {
-      const container = document.getElementById("kakao-map");
-      if (!container || !window.kakao || !isMounted) return;
+  const container = document.getElementById("kakao-map");
+  if (!container || !window.kakao || !isMounted) return;
 
-      const defaultCoords = new window.kakao.maps.LatLng(37.4781, 126.9517);
+  const defaultCoords = new window.kakao.maps.LatLng(37.4781, 126.9517);
 
-      const options = {
-        center: defaultCoords,
-        level: 5,
-      };
+  const options = {
+    center: defaultCoords,
+    level: 5,
+  };
 
-      const map = new window.kakao.maps.Map(container, options);
-      const geocoder = new window.kakao.maps.services.Geocoder();
+  const map = new window.kakao.maps.Map(container, options);
+  
+  if (!window.kakao.maps.services || !window.kakao.maps.services.Geocoder) {
+    console.error("Geocoder 서비스를 불러올 수 없습니다.");
+    setCurrentAddress("위치 확인 불가");
+    return;
+  }
+  
+  const geocoder = new window.kakao.maps.services.Geocoder();
 
-      const searchAddrFromCoords = (coords, callback) => {
-        if (regionLookupUnavailableRef.current) return;
+  // 📝 [수정] 400 에러를 방지하기 위해 좌표 유효성 검사 로직 추가
+  const searchAddrFromCoords = (coords, callback) => {
+    if (regionLookupUnavailableRef.current) return;
+    if (!coords) return;
 
-        geocoder.coord2RegionCode(coords.getLng(), coords.getLat(), callback);
-      };
+    const lng = coords.getLng();
+    const lat = coords.getLat();
 
-      const displayCenterInfo = (result, status) => {
-        if (status === window.kakao.maps.services.Status.OK) {
-          for (let i = 0; i < result.length; i++) {
-            if (result[i].region_type === "H") {
-              setCurrentAddress(result[i].region_3depth_name);
-              break;
-            }
-          }
+    // 좌표가 비어있거나, 숫자가 아니거나(NaN), 0일 경우 API 호출을 차단하여 400 에러 방지
+    if (!lng || !lat || isNaN(lng) || isNaN(lat) || lng === 0 || lat === 0) {
+      console.warn("유효하지 않은 좌표 정보로 인해 주소 조회를 건너뜁니다:", { lat, lng });
+      return;
+    }
+
+    geocoder.coord2RegionCode(lng, lat, callback);
+  };
+
+  const displayCenterInfo = (result, status) => {
+    if (status === window.kakao.maps.services.Status.OK) {
+      for (let i = 0; i < result.length; i++) {
+        if (result[i].region_type === "H") {
+          if (isMounted) setCurrentAddress(result[i].region_3depth_name);
+          break;
+        }
+      }
+      return;
+    }
+
+    if (status === window.kakao.maps.services.Status.ERROR) {
+      regionLookupUnavailableRef.current = true;
+      if (isMounted) setCurrentAddress("위치 확인 불가");
+    }
+  };
+
+  // 1. 초기 맵 중심 좌표 기반 주소 세팅
+  if (map.getCenter()) {
+    searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+  }
+
+  // 2. HTML5 Geolocation 현재 위치 추적
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        
+        // 브라우저에서 받아온 GPS 좌표 자체의 유효성 체크
+        if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
+          console.error("브라우저 GPS가 올바른 좌표를 반환하지 않았습니다.");
           return;
         }
 
-        if (status === window.kakao.maps.services.Status.ERROR) {
-          regionLookupUnavailableRef.current = true;
-          setCurrentAddress("위치 확인 불가");
+        const currentPos = new window.kakao.maps.LatLng(lat, lon);
+
+        if (isMounted) {
+          map.setCenter(currentPos);
+          // 💡 [수정] map 객체 중심이 바뀐 것을 안전하게 확인한 후 currentPos 직접 전달
+          searchAddrFromCoords(currentPos, displayCenterInfo);
         }
-      };
+      },
+      (error) => {
+        console.error("GPS 위치 정보를 가져오는 데 실패했습니다.", error);
+        if (isMounted && map.getCenter()) {
+          searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }
 
-      searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+  window.kakao.maps.event.addListener(map, "idle", () => {
+    const centerCoords = map.getCenter();
+    if (centerCoords) {
+      searchAddrFromCoords(centerCoords, displayCenterInfo);
+    }
+  });
 
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            const currentPos = new window.kakao.maps.LatLng(lat, lon);
-
-            map.setCenter(currentPos);
-            searchAddrFromCoords(currentPos, displayCenterInfo);
-          },
-          (error) => {
-            console.error("GPS 위치 정보를 가져오는 데 실패했습니다.", error);
-            searchAddrFromCoords(map.getCenter(), displayCenterInfo);
-          },
-          { enableHighAccuracy: true, timeout: 5000 }
-        );
-      }
-
-      window.kakao.maps.event.addListener(map, "idle", () => {
-        const centerCoords = map.getCenter();
-        searchAddrFromCoords(centerCoords, displayCenterInfo);
-      });
-
-      window.kakao.maps.event.addListener(map, "click", () => {
-        navigate("/location");
-      });
-    };
+  window.kakao.maps.event.addListener(map, "click", () => {
+    navigate("/location");
+  });
+};
 
     loadKakaoMap()
       .then(initializeMap)
@@ -448,12 +484,12 @@ const Home = () => {
 
         {/* 카테고리 슬라이더 배치 (상단 배치 완료) */}
         <CategoryGrid>
-          <CategoryItem onClick={() => navigate('/paper')}><CategoryIcon img={PaperIcon} /><CategoryText>종이</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/plastic')}><CategoryIcon img={PlasticIcon} /><CategoryText>플라스틱</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/glass')}><CategoryIcon img={GlassIcon} /><CategoryText>유리</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/food')}><CategoryIcon img={FtIcon} /><CategoryText>음식물</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/can')}><CategoryIcon img={CanIcon} /><CategoryText>캔</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/trash')}><CategoryIcon img={TrashIcon} /><CategoryText>일반쓰레기</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/paper')}><CategoryIcon $img={PaperIcon} /><CategoryText>종이</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/plastic')}><CategoryIcon $img={PlasticIcon} /><CategoryText>플라스틱</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/glass')}><CategoryIcon $img={GlassIcon} /><CategoryText>유리</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/food')}><CategoryIcon $img={FtIcon} /><CategoryText>음식물</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/can')}><CategoryIcon $img={CanIcon} /><CategoryText>캔</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate('/trash')}><CategoryIcon $img={TrashIcon} /><CategoryText>일반쓰레기</CategoryText></CategoryItem>
         </CategoryGrid>
 
         {/* 위치 정보 헤더 */}
@@ -472,7 +508,7 @@ const Home = () => {
         <ChatbotBannerSection>
           <ChatbotSubTitle>헷갈리거나 궁금하다면</ChatbotSubTitle>
           <ChatbotMainTitle>비움이와 채팅하러가기</ChatbotMainTitle>
-          
+
           <ChatbotCard onClick={() => navigate("/chatbot")}>
             <ChatbotCharacterCircle />
             <ChatbotTextWrapper>
@@ -484,7 +520,7 @@ const Home = () => {
               <ChatbotPreviewRow>
                 {/* 마지막 대화 내용 뜨는 부분 */}
                 <ChatbotMessagePreview>{lastChatMessage.text}</ChatbotMessagePreview>
-                
+
                 {/* 안읽은 메세지가 있을 때만 배지 띄우기 */}
                 {lastChatMessage.unreadCount > 0 && (
                   <ChatbotBadgeCount>{lastChatMessage.unreadCount}</ChatbotBadgeCount>
