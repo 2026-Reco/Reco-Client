@@ -3,7 +3,6 @@ import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { CommonLayout } from "../components/CommonLayout";
 
-// 이미지 파일 import
 import Bium from "../assets/img/Bium.svg";
 import BiumProfile from "../assets/img/BiumProfile.svg";
 import EarthIcon from "../assets/img/earth30.svg";
@@ -19,12 +18,12 @@ import { getRequiredEnv } from "../config/env";
 const Main = styled.div`
   position: relative;
   width: 393px;
-  height: 852px; /* 스크롤 없이 컴팩트하게 떨어지도록 전체 높이 조정 */
+  height: 852px;
   margin: 0 auto;
   background: #ffffff;
-  overflow-y: auto; /* 내용이 많아질 경우 안전 장치 */
+  overflow-y: auto;
   overflow-x: hidden;
-  
+
   &::-webkit-scrollbar {
     display: none;
   }
@@ -81,9 +80,9 @@ const CharacterImage = styled.div`
 
 const EarthBackground = styled.div`
   position: absolute;
-  left: 100px; 
-  top: 10px; 
-  width: 400px; 
+  left: 100px;
+  top: 10px;
+  width: 400px;
   height: 430px;
   background-image: url(${EarthIcon});
   background-size: contain;
@@ -92,10 +91,10 @@ const EarthBackground = styled.div`
 
 const Card = styled.div`
   position: absolute;
-  top: 275px; /* 검색바가 빠지면서 카드가 위로 조금 더 자연스럽게 안착 */
+  top: 275px;
   left: 0;
   width: 393px;
-  height: 577px; 
+  height: 577px;
   background: #ffffff !important;
   box-shadow: 0px -2px 10px rgba(0, 0, 0, 0.08);
   border-radius: 25px 25px 0 0;
@@ -113,7 +112,7 @@ const CategoryGrid = styled.div`
   white-space: nowrap;
   padding-bottom: 10px;
   z-index: 2;
-  
+
   &::-webkit-scrollbar {
     display: none;
   }
@@ -130,8 +129,7 @@ const CategoryIcon = styled.div`
   width: 52px;
   height: 52px;
   margin: 0 auto 8px;
-  
-  background-image: url(${props => props.$img}); 
+  background-image: url(${(props) => props.$img});
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -186,17 +184,16 @@ const LocationBadge = styled.div`
 const MapContainer = styled.div`
   position: absolute;
   left: 21px;
-  top: 475px; 
+  top: 475px;
   width: 351px;
-  height: 195px; 
+  height: 195px;
   border-radius: 15px;
   overflow: hidden;
   border: 1px solid #e2e2e2;
   z-index: 2;
-  cursor: pointer; 
+  cursor: pointer;
 `;
 
-/* ===== 신규 추가: 챗봇 바로가기 배너 구조 ===== */
 const ChatbotBannerSection = styled.div`
   position: absolute;
   left: 21px;
@@ -283,10 +280,10 @@ const ChatbotPreviewRow = styled.div`
 const ChatbotMessagePreview = styled.div`
   font-family: Paperlogy;
   font-size: 11px;
-  color: #000000 50%;
+  color: rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis; 
+  text-overflow: ellipsis;
   max-width: 200px;
 `;
 
@@ -305,16 +302,15 @@ const ChatbotBadgeCount = styled.div`
   flex-shrink: 0;
 `;
 
-/* ===== Main Component ===== */
 const Home = () => {
   const [currentAddress, setCurrentAddress] = useState("위치 탐색 중...");
-  const regionLookupUnavailableRef = useRef(false);
+  const mapRef = useRef(null);
   const navigate = useNavigate();
 
-  const [lastChatMessage, setLastChatMessage] = useState({
+  const [lastChatMessage] = useState({
     text: "안녕하세요! 비움이에게 무엇이든 물어보세요!",
     time: "지금",
-    unreadCount: 1
+    unreadCount: 1,
   });
 
   useEffect(() => {
@@ -324,142 +320,134 @@ const Home = () => {
       new Promise((resolve, reject) => {
         try {
           const kakaoMapKey = getRequiredEnv("VITE_KAKAO_MAP_KEY");
+
+          if (window.kakao?.maps) {
+            window.kakao.maps.load(() => resolve(window.kakao));
+            return;
+          }
+
           const existingScript = document.querySelector(
             'script[src*="dapi.kakao.com/v2/maps/sdk.js"]'
           );
 
-          if (window.kakao?.maps) {
-            window.kakao.maps.load(resolve);
-            return;
-          }
-
           if (existingScript) {
-            existingScript.addEventListener("load", () => {
-              window.kakao.maps.load(resolve);
-            });
-            existingScript.addEventListener("error", reject);
-            return;
+            existingScript.remove();
           }
 
           const script = document.createElement("script");
           script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoMapKey}&autoload=false&libraries=services`;
           script.async = true;
-          script.onload = () => window.kakao.maps.load(resolve);
-          script.onerror = reject;
+
+          script.onload = () => {
+            if (!window.kakao?.maps) {
+              reject(new Error("Kakao SDK loaded, but window.kakao.maps is missing"));
+              return;
+            }
+
+            window.kakao.maps.load(() => resolve(window.kakao));
+          };
+
+          script.onerror = () => {
+            reject(new Error(`Kakao SDK load failed: ${script.src}`));
+          };
+
           document.head.appendChild(script);
         } catch (error) {
           reject(error);
         }
       });
 
-    const initializeMap = () => {
-  const container = document.getElementById("kakao-map");
-  if (!container || !window.kakao || !isMounted) return;
+    const setRegionName = (geocoder, coords) => {
+      if (!coords || !window.kakao?.maps?.services) return;
 
-  const defaultCoords = new window.kakao.maps.LatLng(37.4781, 126.9517);
+      const lng = coords.getLng();
+      const lat = coords.getLat();
 
-  const options = {
-    center: defaultCoords,
-    level: 5,
-  };
-
-  const map = new window.kakao.maps.Map(container, options);
-  
-  if (!window.kakao.maps.services || !window.kakao.maps.services.Geocoder) {
-    console.error("Geocoder 서비스를 불러올 수 없습니다.");
-    setCurrentAddress("위치 확인 불가");
-    return;
-  }
-  
-  const geocoder = new window.kakao.maps.services.Geocoder();
-
-  // 📝 [수정] 400 에러를 방지하기 위해 좌표 유효성 검사 로직 추가
-  const searchAddrFromCoords = (coords, callback) => {
-    if (regionLookupUnavailableRef.current) return;
-    if (!coords) return;
-
-    const lng = coords.getLng();
-    const lat = coords.getLat();
-
-    // 좌표가 비어있거나, 숫자가 아니거나(NaN), 0일 경우 API 호출을 차단하여 400 에러 방지
-    if (!lng || !lat || isNaN(lng) || isNaN(lat) || lng === 0 || lat === 0) {
-      console.warn("유효하지 않은 좌표 정보로 인해 주소 조회를 건너뜁니다:", { lat, lng });
-      return;
-    }
-
-    geocoder.coord2RegionCode(lng, lat, callback);
-  };
-
-  const displayCenterInfo = (result, status) => {
-    if (status === window.kakao.maps.services.Status.OK) {
-      for (let i = 0; i < result.length; i++) {
-        if (result[i].region_type === "H") {
-          if (isMounted) setCurrentAddress(result[i].region_3depth_name);
-          break;
-        }
+      if (!lng || !lat || Number.isNaN(lng) || Number.isNaN(lat)) {
+        return;
       }
-      return;
-    }
 
-    if (status === window.kakao.maps.services.Status.ERROR) {
-      regionLookupUnavailableRef.current = true;
-      if (isMounted) setCurrentAddress("위치 확인 불가");
-    }
-  };
+      geocoder.coord2RegionCode(lng, lat, (result, status) => {
+        if (!isMounted) return;
 
-  // 1. 초기 맵 중심 좌표 기반 주소 세팅
-  if (map.getCenter()) {
-    searchAddrFromCoords(map.getCenter(), displayCenterInfo);
-  }
-
-  // 2. HTML5 Geolocation 현재 위치 추적
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-        
-        // 브라우저에서 받아온 GPS 좌표 자체의 유효성 체크
-        if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
-          console.error("브라우저 GPS가 올바른 좌표를 반환하지 않았습니다.");
+        if (status !== window.kakao.maps.services.Status.OK) {
+          setCurrentAddress("위치 확인 불가");
           return;
         }
 
-        const currentPos = new window.kakao.maps.LatLng(lat, lon);
+        const region = result.find((item) => item.region_type === "H");
+        setCurrentAddress(region?.region_3depth_name || region?.region_2depth_name || "위치 확인 불가");
+      });
+    };
 
-        if (isMounted) {
-          map.setCenter(currentPos);
-          // 💡 [수정] map 객체 중심이 바뀐 것을 안전하게 확인한 후 currentPos 직접 전달
-          searchAddrFromCoords(currentPos, displayCenterInfo);
-        }
-      },
-      (error) => {
-        console.error("GPS 위치 정보를 가져오는 데 실패했습니다.", error);
-        if (isMounted && map.getCenter()) {
-          searchAddrFromCoords(map.getCenter(), displayCenterInfo);
-        }
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
-  }
+    const initializeMap = () => {
+      const container = document.getElementById("kakao-map");
 
-  window.kakao.maps.event.addListener(map, "idle", () => {
-    const centerCoords = map.getCenter();
-    if (centerCoords) {
-      searchAddrFromCoords(centerCoords, displayCenterInfo);
-    }
-  });
+      if (!container || !window.kakao?.maps || !isMounted) {
+        setCurrentAddress("지도 설정 필요");
+        return;
+      }
 
-  window.kakao.maps.event.addListener(map, "click", () => {
-    navigate("/location");
-  });
-};
+      const defaultCoords = new window.kakao.maps.LatLng(37.4781, 126.9517);
+
+      const map = new window.kakao.maps.Map(container, {
+        center: defaultCoords,
+        level: 5,
+      });
+
+      mapRef.current = map;
+
+      if (!window.kakao.maps.services?.Geocoder) {
+        setCurrentAddress("위치 확인 불가");
+        return;
+      }
+
+      const geocoder = new window.kakao.maps.services.Geocoder();
+
+      setRegionName(geocoder, defaultCoords);
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            if (!isMounted || !window.kakao?.maps) return;
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            if (!lat || !lon || Number.isNaN(lat) || Number.isNaN(lon)) {
+              setCurrentAddress("위치 확인 불가");
+              return;
+            }
+
+            const currentPos = new window.kakao.maps.LatLng(lat, lon);
+            map.setCenter(currentPos);
+            setRegionName(geocoder, currentPos);
+          },
+          () => {
+            if (isMounted) {
+              setCurrentAddress("관악구");
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 60000,
+          }
+        );
+      } else {
+        setCurrentAddress("관악구");
+      }
+
+      window.kakao.maps.event.addListener(map, "click", () => {
+        navigate("/location");
+      });
+    };
 
     loadKakaoMap()
       .then(initializeMap)
       .catch((error) => {
-        console.error(error);
-        setCurrentAddress("지도 설정 필요");
+        console.error("카카오 지도 로딩 실패:", error);
+        if (isMounted) setCurrentAddress("지도 설정 필요");
       });
 
     return () => {
@@ -471,28 +459,48 @@ const Home = () => {
     <CommonLayout>
       <Main>
         <TitleGreen>지구를 위해,</TitleGreen>
-        <TitleBlack>분리수거 함께<br />하실래요?</TitleBlack>
+        <TitleBlack>
+          분리수거 함께
+          <br />
+          하실래요?
+        </TitleBlack>
         <SubText>
-          어떤 쓰레기인지 헷갈리셨죠?<br />
+          어떤 쓰레기인지 헷갈리셨죠?
+          <br />
           제가 알려드릴게요!
         </SubText>
 
         <EarthBackground />
         <CharacterImage />
-
         <Card />
 
-        {/* 카테고리 슬라이더 배치 (상단 배치 완료) */}
         <CategoryGrid>
-          <CategoryItem onClick={() => navigate('/paper')}><CategoryIcon $img={PaperIcon} /><CategoryText>종이</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/plastic')}><CategoryIcon $img={PlasticIcon} /><CategoryText>플라스틱</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/glass')}><CategoryIcon $img={GlassIcon} /><CategoryText>유리</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/food')}><CategoryIcon $img={FtIcon} /><CategoryText>음식물</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/can')}><CategoryIcon $img={CanIcon} /><CategoryText>캔</CategoryText></CategoryItem>
-          <CategoryItem onClick={() => navigate('/trash')}><CategoryIcon $img={TrashIcon} /><CategoryText>일반쓰레기</CategoryText></CategoryItem>
+          <CategoryItem onClick={() => navigate("/paper")}>
+            <CategoryIcon $img={PaperIcon} />
+            <CategoryText>종이</CategoryText>
+          </CategoryItem>
+          <CategoryItem onClick={() => navigate("/plastic")}>
+            <CategoryIcon $img={PlasticIcon} />
+            <CategoryText>플라스틱</CategoryText>
+          </CategoryItem>
+          <CategoryItem onClick={() => navigate("/glass")}>
+            <CategoryIcon $img={GlassIcon} />
+            <CategoryText>유리</CategoryText>
+          </CategoryItem>
+          <CategoryItem onClick={() => navigate("/food")}>
+            <CategoryIcon $img={FtIcon} />
+            <CategoryText>음식물</CategoryText>
+          </CategoryItem>
+          <CategoryItem onClick={() => navigate("/can")}>
+            <CategoryIcon $img={CanIcon} />
+            <CategoryText>캔</CategoryText>
+          </CategoryItem>
+          <CategoryItem onClick={() => navigate("/trash")}>
+            <CategoryIcon $img={TrashIcon} />
+            <CategoryText>일반쓰레기</CategoryText>
+          </CategoryItem>
         </CategoryGrid>
 
-        {/* 위치 정보 헤더 */}
         <LocationHeaderWrapper>
           <LocationTitle>
             <LocationSub>나의 위치 기반</LocationSub>
@@ -501,10 +509,8 @@ const Home = () => {
           <LocationBadge>📍 {currentAddress}</LocationBadge>
         </LocationHeaderWrapper>
 
-        {/* 카카오 지도 컨테이너 */}
         <MapContainer id="kakao-map" onClick={() => navigate("/location")} />
 
-        {/* 비움이 채팅 배너 */}
         <ChatbotBannerSection>
           <ChatbotSubTitle>헷갈리거나 궁금하다면</ChatbotSubTitle>
           <ChatbotMainTitle>비움이와 채팅하러가기</ChatbotMainTitle>
@@ -514,14 +520,10 @@ const Home = () => {
             <ChatbotTextWrapper>
               <ChatbotNameRow>
                 <ChatbotName>비움이</ChatbotName>
-                {/* 실시간 대화 시간 */}
                 <ChatbotTime>{lastChatMessage.time}</ChatbotTime>
               </ChatbotNameRow>
               <ChatbotPreviewRow>
-                {/* 마지막 대화 내용 뜨는 부분 */}
                 <ChatbotMessagePreview>{lastChatMessage.text}</ChatbotMessagePreview>
-
-                {/* 안읽은 메세지가 있을 때만 배지 띄우기 */}
                 {lastChatMessage.unreadCount > 0 && (
                   <ChatbotBadgeCount>{lastChatMessage.unreadCount}</ChatbotBadgeCount>
                 )}
@@ -529,7 +531,6 @@ const Home = () => {
             </ChatbotTextWrapper>
           </ChatbotCard>
         </ChatbotBannerSection>
-
       </Main>
     </CommonLayout>
   );
