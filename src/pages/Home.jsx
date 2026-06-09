@@ -353,71 +353,107 @@ const Home = () => {
       });
 
     const initializeMap = () => {
-      const container = document.getElementById("kakao-map");
-      if (!container || !window.kakao || !isMounted) return;
+  const container = document.getElementById("kakao-map");
+  if (!container || !window.kakao || !isMounted) return;
 
-      const defaultCoords = new window.kakao.maps.LatLng(37.4781, 126.9517);
+  const defaultCoords = new window.kakao.maps.LatLng(37.4781, 126.9517);
 
-      const options = {
-        center: defaultCoords,
-        level: 5,
-      };
+  const options = {
+    center: defaultCoords,
+    level: 5,
+  };
 
-      const map = new window.kakao.maps.Map(container, options);
-      const geocoder = new window.kakao.maps.services.Geocoder();
+  const map = new window.kakao.maps.Map(container, options);
+  
+  if (!window.kakao.maps.services || !window.kakao.maps.services.Geocoder) {
+    console.error("Geocoder 서비스를 불러올 수 없습니다.");
+    setCurrentAddress("위치 확인 불가");
+    return;
+  }
+  
+  const geocoder = new window.kakao.maps.services.Geocoder();
 
-      const searchAddrFromCoords = (coords, callback) => {
-        if (regionLookupUnavailableRef.current) return;
+  // 📝 [수정] 400 에러를 방지하기 위해 좌표 유효성 검사 로직 추가
+  const searchAddrFromCoords = (coords, callback) => {
+    if (regionLookupUnavailableRef.current) return;
+    if (!coords) return;
 
-        geocoder.coord2RegionCode(coords.getLng(), coords.getLat(), callback);
-      };
+    const lng = coords.getLng();
+    const lat = coords.getLat();
 
-      const displayCenterInfo = (result, status) => {
-        if (status === window.kakao.maps.services.Status.OK) {
-          for (let i = 0; i < result.length; i++) {
-            if (result[i].region_type === "H") {
-              setCurrentAddress(result[i].region_3depth_name);
-              break;
-            }
-          }
+    // 좌표가 비어있거나, 숫자가 아니거나(NaN), 0일 경우 API 호출을 차단하여 400 에러 방지
+    if (!lng || !lat || isNaN(lng) || isNaN(lat) || lng === 0 || lat === 0) {
+      console.warn("유효하지 않은 좌표 정보로 인해 주소 조회를 건너뜁니다:", { lat, lng });
+      return;
+    }
+
+    geocoder.coord2RegionCode(lng, lat, callback);
+  };
+
+  const displayCenterInfo = (result, status) => {
+    if (status === window.kakao.maps.services.Status.OK) {
+      for (let i = 0; i < result.length; i++) {
+        if (result[i].region_type === "H") {
+          if (isMounted) setCurrentAddress(result[i].region_3depth_name);
+          break;
+        }
+      }
+      return;
+    }
+
+    if (status === window.kakao.maps.services.Status.ERROR) {
+      regionLookupUnavailableRef.current = true;
+      if (isMounted) setCurrentAddress("위치 확인 불가");
+    }
+  };
+
+  // 1. 초기 맵 중심 좌표 기반 주소 세팅
+  if (map.getCenter()) {
+    searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+  }
+
+  // 2. HTML5 Geolocation 현재 위치 추적
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        
+        // 브라우저에서 받아온 GPS 좌표 자체의 유효성 체크
+        if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
+          console.error("브라우저 GPS가 올바른 좌표를 반환하지 않았습니다.");
           return;
         }
 
-        if (status === window.kakao.maps.services.Status.ERROR) {
-          regionLookupUnavailableRef.current = true;
-          setCurrentAddress("위치 확인 불가");
+        const currentPos = new window.kakao.maps.LatLng(lat, lon);
+
+        if (isMounted) {
+          map.setCenter(currentPos);
+          // 💡 [수정] map 객체 중심이 바뀐 것을 안전하게 확인한 후 currentPos 직접 전달
+          searchAddrFromCoords(currentPos, displayCenterInfo);
         }
-      };
+      },
+      (error) => {
+        console.error("GPS 위치 정보를 가져오는 데 실패했습니다.", error);
+        if (isMounted && map.getCenter()) {
+          searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }
 
-      searchAddrFromCoords(map.getCenter(), displayCenterInfo);
+  window.kakao.maps.event.addListener(map, "idle", () => {
+    const centerCoords = map.getCenter();
+    if (centerCoords) {
+      searchAddrFromCoords(centerCoords, displayCenterInfo);
+    }
+  });
 
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            const currentPos = new window.kakao.maps.LatLng(lat, lon);
-
-            map.setCenter(currentPos);
-            searchAddrFromCoords(currentPos, displayCenterInfo);
-          },
-          (error) => {
-            console.error("GPS 위치 정보를 가져오는 데 실패했습니다.", error);
-            searchAddrFromCoords(map.getCenter(), displayCenterInfo);
-          },
-          { enableHighAccuracy: true, timeout: 5000 }
-        );
-      }
-
-      window.kakao.maps.event.addListener(map, "idle", () => {
-        const centerCoords = map.getCenter();
-        searchAddrFromCoords(centerCoords, displayCenterInfo);
-      });
-
-      window.kakao.maps.event.addListener(map, "click", () => {
-        navigate("/location");
-      });
-    };
+  window.kakao.maps.event.addListener(map, "click", () => {
+    navigate("/location");
+  });
+};
 
     loadKakaoMap()
       .then(initializeMap)

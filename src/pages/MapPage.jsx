@@ -296,15 +296,26 @@ const DEFAULT_POSITION = {
   latitude: 37.4604,
   longitude: 126.9188,
 };
+const DEFAULT_DISTRICT = "관악구";
 
 const isLocationAllowed = () =>
   localStorage.getItem("locationAllowed") === "true";
 
 const getPlaceLatitude = (place) =>
-  Number(place.latitude ?? place.lat ?? place.y);
+  Number(place.latitude ?? place.lat ?? place.y ?? place.mapY);
 
 const getPlaceLongitude = (place) =>
-  Number(place.longitude ?? place.lng ?? place.lon ?? place.x);
+  Number(place.longitude ?? place.lng ?? place.lon ?? place.x ?? place.mapX);
+
+const normalizePlacesResponse = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.result)) return data.result;
+  if (Array.isArray(data?.content)) return data.content;
+  if (Array.isArray(data?.places)) return data.places;
+
+  return [];
+};
 
 const getDistanceMeters = (from, to) => {
   const lat1 = Number(from.latitude);
@@ -345,13 +356,22 @@ const getPlaceUniqueKey = (place) => {
 };
 
 const getPlaceDistrict = (place) => {
-  const address = place.address || place.roadAddress || place.addressName || "";
-  const addressDistrict = address.match(/[가-힣]+구/)?.[0] || "";
+  const districtFields = [
+    place.address,
+    place.roadAddress,
+    place.addressName,
+    place.district,
+    place.placeDistrict,
+    place.name,
+  ];
 
-  if (addressDistrict) return addressDistrict;
-  if (place.district?.endsWith("구")) return place.district;
+  for (const field of districtFields) {
+    const district = String(field || "").match(/[가-힣]+구/)?.[0] || "";
 
-  return place.placeDistrict || "";
+    if (district) return district;
+  }
+
+  return "";
 };
 
 const getPlacesByDistance = (placeList, position) =>
@@ -424,8 +444,7 @@ const MapPage = () => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerListRef = useRef([]);
-  const districtCacheRef = useRef(new Map());
-  const regionLookupUnavailableRef = useRef(false);
+  const markerPlacesRef = useRef([]);
 
   const [keyword, setKeyword] = useState("");
   const [isOpen, setIsOpen] = useState(true);
@@ -439,6 +458,7 @@ const MapPage = () => {
   const [currentDistrict, setCurrentDistrict] = useState("");
   const [locationEnabled, setLocationEnabled] = useState(isLocationAllowed());
   const [isSearchMode, setIsSearchMode] = useState(false);
+  const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
   const DEFAULT_SHEET_HEIGHT = 250;
   const [sheetHeight, setSheetHeight] = useState(DEFAULT_SHEET_HEIGHT);
   const sheetStartHeight = useRef(DEFAULT_SHEET_HEIGHT);
@@ -446,18 +466,6 @@ const MapPage = () => {
   const clearMarkers = () => {
     markerListRef.current.forEach((marker) => marker.setMap(null));
     markerListRef.current = [];
-  };
-
-  const resetPlacesForLocationOff = () => {
-    setLocationEnabled(false);
-    setIsSearchMode(false);
-    setCurrentPosition(DEFAULT_POSITION);
-    setCurrentDistrict("");
-    setPlaces([]);
-    setPlaceLoadError("");
-    setSelectedPlace(null);
-    setSelectedPlaceId(null);
-    clearMarkers();
   };
 
   const getSelectedMarkerImage = () =>
@@ -504,6 +512,244 @@ const MapPage = () => {
     setBookmarks(savedBookmarks);
   }, []);
 
+  // const getCurrentDistrict = (latitude, longitude) =>
+  //   new Promise((resolve) => {
+  //     if (regionLookupUnavailableRef.current) {
+  //       resolve("관악구");
+  //       return;
+  //     }
+
+  //     if (!window.kakao?.maps?.services) {
+  //       resolve("");
+  //       return;
+  //     }
+
+  //     const geocoder = new window.kakao.maps.services.Geocoder();
+
+  //     geocoder.coord2RegionCode(longitude, latitude, (result, status) => {
+  //       if (status !== window.kakao.maps.services.Status.OK) {
+  //         if (status === window.kakao.maps.services.Status.ERROR) {
+  //           regionLookupUnavailableRef.current = true;
+  //         }
+
+  //         resolve("");
+  //         return;
+  //       }
+
+  //       const district =
+  //         result.find((item) => item.region_type === "B")?.region_2depth_name ||
+  //         result[0]?.region_2depth_name ||
+  //         "";
+
+  //       resolve(district);
+  //     });
+  //   });
+
+  const getCurrentDistrict = async () => {
+    return DEFAULT_DISTRICT;
+  };
+
+  // const getDistrictByCoords = (latitude, longitude) =>
+  //   new Promise((resolve) => {
+  //     if (regionLookupUnavailableRef.current) {
+  //       resolve("");
+  //       return;
+  //     }
+
+  //     const lat = Number(latitude);
+  //     const lon = Number(longitude);
+
+  //     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+  //       resolve("");
+  //       return;
+  //     }
+
+  //     const cacheKey = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+  //     const cachedDistrict = districtCacheRef.current.get(cacheKey);
+
+  //     if (cachedDistrict !== undefined) {
+  //       resolve(cachedDistrict);
+  //       return;
+  //     }
+
+  //     if (!window.kakao?.maps?.services) {
+  //       resolve("");
+  //       return;
+  //     }
+
+  //     const geocoder = new window.kakao.maps.services.Geocoder();
+
+  //     geocoder.coord2RegionCode(lon, lat, (result, status) => {
+  //       if (status !== window.kakao.maps.services.Status.OK) {
+  //         if (status === window.kakao.maps.services.Status.ERROR) {
+  //           regionLookupUnavailableRef.current = true;
+  //         }
+
+  //         districtCacheRef.current.set(cacheKey, "");
+  //         resolve("");
+  //         return;
+  //       }
+
+  //       const district =
+  //         result.find((item) => item.region_type === "B")?.region_2depth_name ||
+  //         result[0]?.region_2depth_name ||
+  //         "";
+
+  //       districtCacheRef.current.set(cacheKey, district);
+  //       resolve(district);
+  //     });
+  //   });
+
+  const getPlaceDistrictByInfoOrCoords = async (place) => {
+    return getPlaceDistrict(place);
+  };
+
+  const getPlacesInDistrict = async (placeList, district) => {
+    if (!district) return [];
+
+    const placesWithDistrict = await Promise.all(
+      placeList.map(async (place) => ({
+        ...place,
+        placeDistrict: await getPlaceDistrictByInfoOrCoords(place),
+      })),
+    );
+
+    return placesWithDistrict.filter(
+      (place) => getPlaceDistrict(place) === district,
+    );
+  };
+
+  async function fetchPlaces(latitude, longitude, category = activeCategory) {
+    try {
+      setPlaceLoadError("");
+
+      if (category === "폐의약품") {
+        alert("폐의약품 수거함은 준비 중입니다.");
+        return;
+      }
+
+      const type = CATEGORY_TYPE_MAP[category];
+      if (!type) return;
+
+      console.log("[MapPage] fetchPlaces 호출:", {
+        latitude,
+        longitude,
+        category,
+        type,
+      });
+
+      const data = normalizePlacesResponse(await getPlaces(type));
+      console.log("==========");
+      console.log("카테고리:", category);
+      console.log("전체 데이터 수:", data.length);
+      console.log("샘플 데이터:", data.slice(0, 3));
+
+      console.log(
+        "관악 포함 데이터:",
+        data
+          .filter((item) => JSON.stringify(item).includes("관악"))
+          .slice(0, 5),
+      );
+      const district = await getCurrentDistrict(latitude, longitude);
+      const districtPlaces = await getPlacesInDistrict(data, district);
+      console.log("관악 필터 샘플:", districtPlaces.slice(0, 5));
+
+      console.log(
+        "좌표 확인:",
+        districtPlaces.slice(0, 5).map((p) => ({
+          name: p.name,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          latParsed: getPlaceLatitude(p),
+          lonParsed: getPlaceLongitude(p),
+        })),
+      );
+
+      const sortedPlaces = getPlacesByDistance(districtPlaces, {
+        latitude,
+        longitude,
+      });
+      const topPlaces = sortedPlaces.slice(0, 3);
+
+      console.log("[MapPage] 장소 데이터 확인:", {
+        getPlacesCount: data.length,
+        district,
+        districtFilteredCount: districtPlaces.length,
+        distanceSortableCount: sortedPlaces.length,
+        topPlacesCount: topPlaces.length,
+      });
+
+      setCurrentDistrict(district);
+      setPlaces(topPlaces);
+      setSelectedPlace(null);
+      setSelectedPlaceId(null);
+
+      if (sortedPlaces.length === 0) {
+        clearMarkers();
+        return;
+      }
+
+      markerPlacesRef.current = sortedPlaces;
+
+      addPlaceMarkers(sortedPlaces, null);
+    } catch (error) {
+      console.error("장소 조회 실패:", error);
+      setPlaces([]);
+      setSelectedPlace(null);
+      setSelectedPlaceId(null);
+      clearMarkers();
+      setPlaceLoadError("장소 정보를 불러오지 못했습니다.");
+    }
+  }
+
+  async function fetchBookmarkedPlaces(latitude, longitude) {
+    setPlaceLoadError("");
+
+    const district = await getCurrentDistrict(latitude, longitude);
+    const districtBookmarks = await getPlacesInDistrict(bookmarks, district);
+    const sortedBookmarks = getPlacesByDistance(districtBookmarks, {
+      latitude,
+      longitude,
+    });
+    const topBookmarks = sortedBookmarks.slice(0, 3);
+
+    setCurrentDistrict(district);
+    setPlaces(topBookmarks);
+    setSelectedPlace(null);
+    setSelectedPlaceId(null);
+
+    if (topBookmarks.length === 0) {
+      clearMarkers();
+      return;
+    }
+
+    addPlaceMarkers(topBookmarks, null);
+  }
+
+  const resetPlacesForLocationOff = () => {
+    setLocationEnabled(false);
+    setIsSearchMode(false);
+    setCurrentPosition(DEFAULT_POSITION);
+    setCurrentDistrict(DEFAULT_DISTRICT);
+    setPlaceLoadError("");
+    setSelectedPlace(null);
+    setSelectedPlaceId(null);
+
+    if (activeCategory === "북마크") {
+      fetchBookmarkedPlaces(
+        DEFAULT_POSITION.latitude,
+        DEFAULT_POSITION.longitude,
+      );
+      return;
+    }
+
+    fetchPlaces(
+      DEFAULT_POSITION.latitude,
+      DEFAULT_POSITION.longitude,
+      activeCategory,
+    );
+  };
+
   useEffect(() => {
     const handleLocationPermissionChange = () => {
       const nextLocationEnabled = isLocationAllowed();
@@ -529,179 +775,6 @@ const MapPage = () => {
       window.removeEventListener("storage", handleLocationPermissionChange);
     };
   }, []);
-
-  const getCurrentDistrict = (latitude, longitude) =>
-    new Promise((resolve) => {
-      if (regionLookupUnavailableRef.current) {
-        resolve("관악구");
-        return;
-      }
-
-      if (!window.kakao?.maps?.services) {
-        resolve("");
-        return;
-      }
-
-      const geocoder = new window.kakao.maps.services.Geocoder();
-
-      geocoder.coord2RegionCode(longitude, latitude, (result, status) => {
-        if (status !== window.kakao.maps.services.Status.OK) {
-          if (status === window.kakao.maps.services.Status.ERROR) {
-            regionLookupUnavailableRef.current = true;
-          }
-
-          resolve("");
-          return;
-        }
-
-        const district =
-          result.find((item) => item.region_type === "B")?.region_2depth_name ||
-          result[0]?.region_2depth_name ||
-          "";
-
-        resolve(district);
-      });
-    });
-
-  const getDistrictByCoords = (latitude, longitude) =>
-    new Promise((resolve) => {
-      if (regionLookupUnavailableRef.current) {
-        resolve("");
-        return;
-      }
-
-      const lat = Number(latitude);
-      const lon = Number(longitude);
-
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        resolve("");
-        return;
-      }
-
-      const cacheKey = `${lat.toFixed(6)},${lon.toFixed(6)}`;
-      const cachedDistrict = districtCacheRef.current.get(cacheKey);
-
-      if (cachedDistrict !== undefined) {
-        resolve(cachedDistrict);
-        return;
-      }
-
-      if (!window.kakao?.maps?.services) {
-        resolve("");
-        return;
-      }
-
-      const geocoder = new window.kakao.maps.services.Geocoder();
-
-      geocoder.coord2RegionCode(lon, lat, (result, status) => {
-        if (status !== window.kakao.maps.services.Status.OK) {
-          if (status === window.kakao.maps.services.Status.ERROR) {
-            regionLookupUnavailableRef.current = true;
-          }
-
-          districtCacheRef.current.set(cacheKey, "");
-          resolve("");
-          return;
-        }
-
-        const district =
-          result.find((item) => item.region_type === "B")?.region_2depth_name ||
-          result[0]?.region_2depth_name ||
-          "";
-
-        districtCacheRef.current.set(cacheKey, district);
-        resolve(district);
-      });
-    });
-
-  const getPlaceDistrictByInfoOrCoords = async (place) => {
-    return getPlaceDistrict(place);
-  };
-
-  const getPlacesInDistrict = async (placeList, district) => {
-    if (!district) return [];
-
-    const placesWithDistrict = await Promise.all(
-      placeList.map(async (place) => ({
-        ...place,
-        placeDistrict: await getPlaceDistrictByInfoOrCoords(place),
-      })),
-    );
-
-    return placesWithDistrict.filter(
-      (place) => getPlaceDistrict(place) === district,
-    );
-  };
-
-  const fetchPlaces = async (
-    latitude,
-    longitude,
-    category = activeCategory,
-  ) => {
-    try {
-      setPlaceLoadError("");
-
-      if (category === "폐의약품") {
-        alert("폐의약품 수거함은 준비 중입니다.");
-        return;
-      }
-
-      const type = CATEGORY_TYPE_MAP[category];
-      if (!type) return;
-
-      const data = await getPlaces(type);
-      const district = await getCurrentDistrict(latitude, longitude);
-      const districtPlaces = await getPlacesInDistrict(data, district);
-      const sortedPlaces = getPlacesByDistance(districtPlaces, {
-        latitude,
-        longitude,
-      });
-      const topPlaces = sortedPlaces.slice(0, 3);
-
-      setCurrentDistrict(district);
-      setPlaces(topPlaces);
-      setSelectedPlace(null);
-      setSelectedPlaceId(null);
-
-      if (topPlaces.length === 0) {
-        clearMarkers();
-        return;
-      }
-
-      addPlaceMarkers(topPlaces, null);
-    } catch (error) {
-      console.error("장소 조회 실패:", error);
-      setPlaces([]);
-      setSelectedPlace(null);
-      setSelectedPlaceId(null);
-      clearMarkers();
-      setPlaceLoadError("장소 정보를 불러오지 못했습니다.");
-    }
-  };
-
-  const fetchBookmarkedPlaces = async (latitude, longitude) => {
-    setPlaceLoadError("");
-
-    const district = await getCurrentDistrict(latitude, longitude);
-    const districtBookmarks = await getPlacesInDistrict(bookmarks, district);
-    const sortedBookmarks = getPlacesByDistance(districtBookmarks, {
-      latitude,
-      longitude,
-    });
-    const topBookmarks = sortedBookmarks.slice(0, 3);
-
-    setCurrentDistrict(district);
-    setPlaces(topBookmarks);
-    setSelectedPlace(null);
-    setSelectedPlaceId(null);
-
-    if (topBookmarks.length === 0) {
-      clearMarkers();
-      return;
-    }
-
-    addPlaceMarkers(topBookmarks, null);
-  };
 
   const moveToCurrentLocation = () => {
     if (!isLocationAllowed()) {
@@ -797,8 +870,8 @@ const MapPage = () => {
         if (!isLocationAllowed()) {
           setLocationEnabled(false);
           setIsSearchMode(false);
-          createMap(DEFAULT_POSITION, false);
-          resetPlacesForLocationOff();
+          createMap(DEFAULT_POSITION, true);
+          // resetPlacesForLocationOff();
           return;
         }
 
@@ -815,6 +888,8 @@ const MapPage = () => {
             createMap(positionData);
           },
           () => {
+            setLocationEnabled(false);
+            setIsSearchMode(false);
             createMap(DEFAULT_POSITION);
           },
         );
@@ -854,7 +929,20 @@ const MapPage = () => {
 
     if (!isLocationAllowed() && !isSearchMode) {
       setLocationEnabled(false);
-      resetPlacesForLocationOff();
+
+      if (category === "북마크") {
+        await fetchBookmarkedPlaces(
+          DEFAULT_POSITION.latitude,
+          DEFAULT_POSITION.longitude,
+        );
+        return;
+      }
+
+      fetchPlaces(
+        DEFAULT_POSITION.latitude,
+        DEFAULT_POSITION.longitude,
+        category,
+      );
       return;
     }
 
@@ -875,7 +963,7 @@ const MapPage = () => {
     setSelectedPlace(place);
     setSelectedPlaceId(place.id);
     setIsOpen(!shouldCollapseSheet);
-    addPlaceMarkers(places, place.id);
+    addPlaceMarkers(markerPlacesRef.current, place.id);
 
     if (!mapInstanceRef.current || !window.kakao) return;
 

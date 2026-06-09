@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useLocation, useNavigate } from "react-router-dom";
 import BiumResultImg from "../assets/img/Bium_result.svg";
-import RecoIcon from "../assets/img/RecoIcon.svg";
+import EcoLabelIcon from "../assets/img/RecoIcon.svg";
 import BottomNav from "../components/BottomNav";
 import ChatIcon from "../assets/img/ChatIcon.svg";
 
@@ -19,47 +19,40 @@ const ResultPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // 📍 말풍선 설명창 열림/닫힘 상태 관리
   const [showTooltip, setShowTooltip] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const autoSaveAttemptedRef = useRef(false);
 
-  // 백엔드 연동 전 기본 더미 객체 정의
-  const { result, capturedImage } = location.state || {
-    result: {
-      item: "플라스틱 병",
-      confidence: 85,
-      contamination: "good", // 👈 'good', 'normal', 'bad' 중 하나가 들어옴
-    },
-    capturedImage: null,
-  };
+  // 📍 더미 데이터 제거 및 백엔드 라우팅 데이터 구조 완전 정착
+  const { result, capturedImage } = location.state || {};
+  console.log("결과 데이터", result);
 
-  // 오염도 상태에 맞춰 아이콘을 선택해주는 함수
+  // 데이터가 없을 경우 비정상 접근이므로 이전 페이지로 튕겨버리는 방어 코드 추가
+  useEffect(() => {
+    if (!result) {
+      alert("분석 결과 데이터가 존재하지 않습니다.");
+      navigate(-1);
+    }
+  }, [result, navigate]);
+
+  if (!result) return null;
+
   const getContaminationIcon = (status) => {
     switch (status) {
-      case "good":
-        return GoodIcon;
-      case "normal":
-        return NormalIcon;
-      case "bad":
-        return BadIcon;
-      default:
-        return GoodIcon;
+      case "good": return GoodIcon;
+      case "normal": return NormalIcon;
+      case "bad": return BadIcon;
+      default: return GoodIcon;
     }
   };
 
-  // 💡 [신규] 오염도 상태에 맞춰 툴팁 텍스트를 반환해주는 함수
   const getContaminationText = (status) => {
     switch (status) {
-      case "good":
-        return "오염도 좋음";
-      case "normal":
-        return "오염도 보통";
-      case "bad":
-        return "오염도 나쁨";
-      default:
-        return "오염도 좋음";
+      case "good": return "오염도 좋음";
+      case "normal": return "오염도 보통";
+      case "bad": return "오염도 나쁨";
+      default: return "오염도 좋음";
     }
   };
 
@@ -107,11 +100,9 @@ const ResultPage = () => {
         return true;
       } catch (error) {
         console.error(error);
-
         if (!silent) {
           alert(error.message || "저장에 실패했습니다.");
         }
-
         return false;
       } finally {
         setIsSaving(false);
@@ -140,7 +131,6 @@ const ResultPage = () => {
         sessionStorage.setItem(autoSaveKey, "saved");
         return;
       }
-
       sessionStorage.removeItem(autoSaveKey);
     });
   }, [capturedImage, result, saveResult]);
@@ -148,33 +138,143 @@ const ResultPage = () => {
   const handleSaveResult = () => {
     saveResult();
   };
+  
   const disposalSteps = result.disposalMethodSummary
     ? result.disposalMethodSummary.split("\n")
-    : [];
+    : result.disposalSteps || [];
 
-  const parseMaterialProbabilities = (text) => {
-    if (!text) return [];
+  const normalizePercent = (value) => {
+    const percent =
+      typeof value === "string"
+        ? Number.parseFloat(value.replace("%", ""))
+        : Number(value);
 
-    const matches = [...text.matchAll(/label=([^,}]+), percent=([\d.]+)/g)];
+    if (!Number.isFinite(percent)) return 0;
+    if (percent > 0 && percent <= 1) return percent * 100;
 
-    return matches.map((match) => ({
-      label: match[1],
-      percent: Number(match[2]),
-    }));
+    return percent;
   };
 
-  const materialData = parseMaterialProbabilities(result.materialProbabilities);
+  const getMaterialLabel = (item) =>
+  item.label ||
+  item.material ||
+  item.materialName ||
+  item.name ||
+  item.className ||
+  item.type ||
+  item.category ||
+  item.waste_type_ko ||
+  "";
+
+const getMaterialPercent = (item) =>
+  normalizePercent(
+    item.percent ??
+      item.percentage ??
+      item.probability ??
+      item.score ??
+      item.confidence ??
+      item.value ??
+      item.ratio,
+  );
+
+  // 📝 백엔드 응답 규격 파싱 함수: 문자열/배열/객체 모두 대응
+  const parseMaterialProbabilities = (value) => {
+    if (!value) return [];
+
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => ({
+          label: getMaterialLabel(item),
+          percent: getMaterialPercent(item),
+        }))
+        .filter((item) => item.label);
+    }
+
+    if (typeof value === "object") {
+      return Object.entries(value).map(([label, percent]) => ({
+        label,
+        percent: normalizePercent(percent),
+      }));
+    }
+
+    const text = String(value);
+    const matches = [
+      ...text.matchAll(
+        /(?:label|material|name)=([^,}]+).*?(?:percent|percentage|probability|score|confidence)=([\d.]+)/g,
+      ),
+    ];
+
+    if (matches.length > 0) {
+      return matches.map((match) => ({
+        label: match[1].trim(),
+        percent: normalizePercent(match[2]),
+      }));
+    }
+
+    return text
+      .split(/[,\n]/)
+      .map((part) => {
+        const match = part.match(/([^:()]+)[:(]\s*([\d.]+)%?\)?/);
+
+        if (!match) return null;
+
+        return {
+          label: match[1].trim(),
+          percent: normalizePercent(match[2]),
+        };
+      })
+      .filter(Boolean);
+  };
+
+  const rawMaterialData = parseMaterialProbabilities(
+  result.materialProbabilities?.length > 0
+    ? result.materialProbabilities
+    : result.summary?.length > 0
+      ? result.summary
+      : result.detail?.length > 0
+        ? result.detail
+        : [
+            {
+              label: result.primaryMaterial || result.primary_material,
+              percent: result.confidence || 100,
+            },
+          ]
+);
+  
+  // 1. 높은 확률순 내림차순 정렬
+  let sortedMaterialData = [...rawMaterialData].sort((a, b) => b.percent - a.percent);
+
+  // 2. 💡 확률이 0%인 재질은 완벽하게 배제 (실물 그래프에 매핑된 것만 추출)
+  sortedMaterialData = sortedMaterialData.filter(item => item.percent > 0);
+
   const contaminationStatus = result.contaminationStatus || "good";
 
-  const plastic =
-    materialData.find((m) => m.label === "플라스틱")?.percent || 0;
-  const glass = materialData.find((m) => m.label === "유리")?.percent || 0;
-  const metal = materialData.find((m) => m.label === "금속")?.percent || 0;
-  const other = materialData.find((m) => m.label === "기타")?.percent || 0;
+  // 🎨 도넛 차트 순위별 고정 색상 팔레트
+  const colorPalette = ["#53B175", "#1E3A2F", "#D3D3D3"];
+  const chartBackground =
+    sortedMaterialData.length > 0
+      ? (() => {
+          const segments = sortedMaterialData.reduce(
+            (acc, item, index) => {
+              const start = acc.total;
+              const end = Math.min(start + item.percent, 100);
+              const color = colorPalette[index] || "#D3D3D3";
 
-  const firstEnd = plastic;
-  const secondEnd = plastic + glass;
-  const thirdEnd = plastic + glass + metal;
+              return {
+                total: end,
+                values: [...acc.values, `${color} ${start}% ${end}%`],
+              };
+            },
+            { total: 0, values: [] },
+          );
+
+          if (segments.total < 100) {
+            segments.values.push(`#E5E5E5 ${segments.total}% 100%`);
+          }
+
+          return `conic-gradient(${segments.values.join(", ")})`;
+        })()
+      : "#E5E5E5";
 
   return (
     <Container>
@@ -202,30 +302,25 @@ const ResultPage = () => {
           <DonutChartContainer>
             <DonutChart
               style={{
-                background: `conic-gradient(
-      #53B175 0% ${firstEnd}%,
-      #1E3A2F ${firstEnd}% ${secondEnd}%,
-      #8A8A8A ${secondEnd}% ${thirdEnd}%,
-      #D3D3D3 ${thirdEnd}% 100%
-    )`,
+                background: chartBackground,
               }}
             >
               <ChartCenter>
-                <EcoLabel src={RecoIcon} alt="RecoIcon" />
+                <EcoLabel src={EcoLabelIcon} alt="EcoLabelIcon" />
               </ChartCenter>
             </DonutChart>
           </DonutChartContainer>
 
           <Legend>
-            <LegendItem>
-              <Dot color="#53B175" /> 플라스틱
-            </LegendItem>
-            <LegendItem>
-              <Dot color="#1E3A2F" /> 유리
-            </LegendItem>
-            <LegendItem>
-              <Dot color="#D3D3D3" /> 기타
-            </LegendItem>
+            {/* 💡 확률 분포 데이터가 실재하는 요소만 범례(Legend) 컴포넌트로 동적 매핑 */}
+            {sortedMaterialData.map((item, index) => {
+              const dotColor = colorPalette[index] || "#D3D3D3";
+              return (
+                <LegendItem key={index}>
+                  <Dot color={dotColor} /> {item.label}
+                </LegendItem>
+              );
+            })}
           </Legend>
         </ChartWrapper>
 
@@ -243,10 +338,7 @@ const ResultPage = () => {
       </AnalysisCard>
 
       <GuideCard>
-        <GuideHeader>
-          {" "}
-          {result.itemName || result.item}은 이렇게 버려요.
-        </GuideHeader>
+        <GuideHeader>{result.itemName || result.item}은 이렇게 버려요.</GuideHeader>
         <GuideList>
           {disposalSteps.length > 0 ? (
             disposalSteps.map((step, index) => (
@@ -291,7 +383,6 @@ const ResultPage = () => {
         </ChatText>
       </ChatbotBtn>
 
-      {/* 네브바 하단 고정 */}
       <BottomNavWrapper>
         <BottomNav />
       </BottomNavWrapper>
@@ -436,18 +527,14 @@ const EmotionIcon = styled.img`
   height: 38px;
   z-index: 10;
   cursor: pointer;
-
   transition: transform 0.1s ease;
-  &:active {
-    transform: scale(0.95); /* 누를 때 들어가는 효과 */
-  }
+  &:active { transform: scale(0.95); }
 `;
 
 const ContaminationTooltip = styled.div`
   position: absolute;
   left: 65px;
   bottom: 18px;
-
   background-color: #e1e1e1;
   color: #6b6b6b;
   font-size: 13px;
@@ -475,7 +562,8 @@ const ContaminationTooltip = styled.div`
 const Legend = styled.div`
   display: flex;
   flex-direction: row;
-  justify-content: right;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 15px;
   width: 100%;
   padding-bottom: 5px;
@@ -525,13 +613,6 @@ const GuideItem = styled.div`
     font-size: 15px;
     font-family: "Paperlogy-6SemiBold", sans-serif;
   }
-  .desc {
-    color: #272727;
-    font-size: 13px;
-    font-weight: bold;
-    margin-top: -8px;
-    font-family: "Paperlogy-6SemiBold", sans-serif;
-  }
 `;
 
 const ActionButtonGroup = styled.div`
@@ -553,10 +634,7 @@ const ActionButton = styled.div`
   cursor: pointer;
   font-family: "Paperlogy-6SemiBold", sans-serif;
   transition: background 0.2s ease;
-
-  &:active {
-    background-color: #dcdcdc;
-  }
+  &:active { background-color: #dcdcdc; }
 `;
 
 const ChatbotBtn = styled.div`
@@ -589,7 +667,6 @@ const ChatText = styled.div`
     font-size: 12px;
     font-weight: 500;
   }
-
   .bottom-msg {
     font-size: 16px;
     font-weight: 800;
@@ -597,10 +674,6 @@ const ChatText = styled.div`
     align-items: center;
     margin-top: -10px;
     gap: 5px;
-  }
-
-  .arrow {
-    font-size: 16px;
   }
 `;
 
