@@ -513,7 +513,14 @@ const MapPage = () => {
 
     mapInstanceRef.current.panTo(movePosition);
   }
-
+  const getMarkerImage = (place, category) =>
+    new window.kakao.maps.MarkerImage(
+      getPlaceImage(place, category),
+      new window.kakao.maps.Size(40, 40),
+      {
+        offset: new window.kakao.maps.Point(20, 40),
+      }
+    );
   const addPlaceMarkers = (
     placeList,
     nextSelectedPlaceId = selectedPlaceId,
@@ -533,7 +540,9 @@ const MapPage = () => {
         map: mapInstanceRef.current,
         position: markerPosition,
         image:
-          place.id === nextSelectedPlaceId ? selectedMarkerImage : undefined,
+          place.id === nextSelectedPlaceId
+            ? selectedMarkerImage
+            : getMarkerImage(place, activeCategory),
       });
 
       markerListRef.current.push(marker);

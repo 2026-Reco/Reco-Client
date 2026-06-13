@@ -3,6 +3,7 @@ import bium from "../assets/loading.gif"
 import { useEffect, useRef } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { getRequiredEnv } from "../config/env"
+import BackIcon from "../assets/img/Vector.svg"; 
 
 const Container = styled.div`
   display: flex;
@@ -37,7 +38,7 @@ const SubTitle = styled.p`
   text-align: center;
   line-height: 1.5;
 `
-const BackButton = styled.button`
+const BackBtn = styled.button`
    background: none;
   border: none;
   font-size: 20px;
@@ -46,6 +47,11 @@ const BackButton = styled.button`
   top: 20px;           /* ← 상단에 고정 */
   left: 24px;
 `
+const BackIconImg = styled.img`
+  width: 12px;
+  height: auto;
+`;
+
 
 const getFastApiBase = () => {
   const base = getRequiredEnv("VITE_API_BASE_URL")
@@ -109,8 +115,8 @@ const getMaterialProbabilities = (source, fallbackResult = {}) => {
         "분석 결과",
       percent: normalizePercent(
         source.confidence ||
-          fallbackResult.confidence ||
-          100
+        fallbackResult.confidence ||
+        100
       ),
     },
   ]
@@ -156,10 +162,10 @@ const normalizeAnalysisResult = (data) => {
       source.contamination?.level === "clean"
         ? "good"
         : source.contamination?.level === "low"
-        ? "normal"
-        : source.contamination?.level === "high"
-        ? "bad"
-        : source.contaminationStatus || "good",
+          ? "normal"
+          : source.contamination?.level === "high"
+            ? "bad"
+            : source.contaminationStatus || "good",
 
     isRecyclable:
       source.recyclable?.possible ??
@@ -260,8 +266,8 @@ const Loading = () => {
         if (!response.ok) {
           throw new Error(
             data.message ||
-              data.detail ||
-              `분석 요청에 실패했습니다. (${response.status})`
+            data.detail ||
+            `분석 요청에 실패했습니다. (${response.status})`
           )
         }
 
@@ -322,8 +328,8 @@ const Loading = () => {
         if (!response.ok) {
           throw new Error(
             data.message ||
-              data.detail ||
-              `재분석 요청에 실패했습니다. (${response.status})`
+            data.detail ||
+            `재분석 요청에 실패했습니다. (${response.status})`
           )
         }
 
@@ -356,7 +362,9 @@ const Loading = () => {
 
   return (
     <Container>
-      <BackButton onClick={() => navigate(-1)}>{"<"}</BackButton>
+      <BackBtn onClick={() => navigate(-1)}>
+        <BackIconImg src={BackIcon} alt="Back" />
+      </BackBtn>
       <Image src={bium} alt="비움 캐릭터" />
       <Title>
         {mode === "reanalyze"
