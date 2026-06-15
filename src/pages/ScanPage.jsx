@@ -124,8 +124,9 @@ const ScanPage = () => {
 /* ===== Styled Components ===== */
 const Container = styled.div`
   position: relative;
-  width: 393px;
-  height: 100vh;
+  width: 100%;
+  max-width: 393px;
+  height: 100dvh; 
   margin: 0 auto;
   background-color: #727272;
   overflow: hidden;
@@ -135,7 +136,7 @@ const Video = styled.video`
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1) !important;
+  transform: scaleX(1) !important;
 `;
 
 const HiddenCanvas = styled.canvas`
@@ -166,7 +167,7 @@ const BackIconImg = styled.img`
 
 const GuideText = styled.div`
   position: absolute;
-  top: 240px;
+  top: 25%; 
   width: 100%;
   text-align: center;
   color: white;
@@ -193,7 +194,8 @@ const ScanFrame = styled.div`
 
 const UploadButton = styled.div`
   position: absolute;
-  top: 750px;
+  /* ScanFrame 중심(48%) + 프레임 높이 절반(144px) + 여백(24px) */
+  top: calc(48% + 168px); 
   left: 50%;
   transform: translateX(-50%);
 
