@@ -167,7 +167,7 @@ const BackIconImg = styled.img`
 
 const GuideText = styled.div`
   position: absolute;
-  top: 25%; 
+  top: 20%; 
   width: 100%;
   text-align: center;
   color: white;
