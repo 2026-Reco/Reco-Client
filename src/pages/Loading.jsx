@@ -79,6 +79,13 @@ const normalizePercent = (value) => {
 
 const getResultSource = (data) => data.result || data.data || data.analysis || data
 
+const getFreshItemTitle = (source) =>
+  source.item_name ||
+  source.waste_type_ko ||
+  source.itemName ||
+  source.item ||
+  "알 수 없는 품목"
+
 const hasProbabilityItems = (value) =>
   Array.isArray(value) ? value.length > 0 : value && typeof value === "object"
 
@@ -125,21 +132,18 @@ const getMaterialProbabilities = (source, fallbackResult = {}) => {
 const normalizeAnalysisResult = (data) => {
   const source = getResultSource(data)
   const steps = source.disposal_steps || source.disposalSteps || []
+  const itemTitle = getFreshItemTitle(source)
 
   return {
     ...source,
 
-    itemName:
-      source.waste_type_ko ||
-      source.itemName ||
-      source.item ||
-      "분석 결과",
+    analysisTitle: itemTitle,
+    waste_type_ko: source.waste_type_ko,
+    item_name: source.item_name,
 
-    item:
-      source.waste_type_ko ||
-      source.itemName ||
-      source.item ||
-      "분석 결과",
+    itemName: itemTitle,
+
+    item: itemTitle,
 
     primaryMaterial:
       source.primary_material ||
@@ -179,26 +183,25 @@ const normalizeAnalysisResult = (data) => {
 const normalizeReanalysisResult = (data, previousResult = {}) => {
   const source = getResultSource(data)
   const normalized = normalizeAnalysisResult(source)
+  const itemTitle =
+    source.item_name ||
+    source.waste_type_ko ||
+    previousResult.item_name ||
+    previousResult.waste_type_ko ||
+    previousResult.analysisTitle ||
+    source.itemName ||
+    source.item ||
+    previousResult.itemName ||
+    previousResult.item ||
+    normalized.analysisTitle
 
   return {
     ...previousResult,
     ...normalized,
 
-    itemName:
-      source.waste_type_ko ||
-      source.itemName ||
-      source.item ||
-      previousResult.itemName ||
-      previousResult.item ||
-      normalized.itemName,
-
-    item:
-      source.waste_type_ko ||
-      source.itemName ||
-      source.item ||
-      previousResult.item ||
-      previousResult.itemName ||
-      normalized.item,
+    analysisTitle: itemTitle,
+    itemName: itemTitle,
+    item: itemTitle,
 
     primaryMaterial:
       source.primary_material ||
@@ -228,6 +231,14 @@ const normalizeReanalysisResult = (data, previousResult = {}) => {
   }
 }
 
+const getImageBlobFromPreview = async (previewImage) => {
+  if (!previewImage?.startsWith?.("data:image") && !previewImage?.startsWith?.("blob:")) {
+    return null
+  }
+
+  return fetch(previewImage).then((res) => res.blob())
+}
+
 const Loading = () => {
   const navigate = useNavigate()
   const location = useLocation()
@@ -249,12 +260,18 @@ const Loading = () => {
 
     const analyze = async () => {
       try {
-        if (!file) {
+        const imageFile = file || await getImageBlobFromPreview(previewImage)
+
+        if (!imageFile) {
           throw new Error("분석할 이미지가 없습니다.")
         }
 
         const formData = new FormData()
-        formData.append("image", file)
+        formData.append(
+          "image",
+          imageFile,
+          imageFile.name || "upload-image.jpg",
+        )
 
         const response = await fetch(`${FASTAPI_BASE}/api/v1/materials/analyze`, {
           method: "POST",
@@ -279,6 +296,7 @@ const Loading = () => {
           state: {
             result: fixedResult,
             capturedImage: previewImage,
+            file: imageFile,
           },
         })
       } catch (error) {

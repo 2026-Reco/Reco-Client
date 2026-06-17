@@ -4,6 +4,7 @@ import { useState } from "react";
 import styled from "styled-components";
 import { Link, useNavigate } from "react-router-dom";
 import { getRequiredEnv } from "../config/env";
+import { syncStoredUserName } from "../services/authUser";
 
 const Container = styled.div`
   display: flex;
@@ -109,16 +110,14 @@ const Login = () => {
       }
 
       const data = await response.json();
+      const displayName = data.name || data.username || userId;
 
       localStorage.setItem("userId", data.id);
-      localStorage.setItem("username", data.username || userId);
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          id: data.id,
-          username: data.username || userId,
-        }),
-      );
+      syncStoredUserName(displayName, {
+        ...data,
+        id: data.id,
+        username: data.username || displayName,
+      });
 
       navigate("/");
     } catch (error) {

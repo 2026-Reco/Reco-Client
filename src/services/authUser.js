@@ -23,6 +23,51 @@ export const getCurrentUserId = () => {
   return normalizeUserId(userId)
 }
 
+export const getStoredUser = () => parseStoredUser()
+
+export const getCurrentUserName = () => {
+  const storedUser = parseStoredUser()
+  const userName =
+    localStorage.getItem("userName") ||
+    storedUser?.name ||
+    storedUser?.username ||
+    localStorage.getItem("username") ||
+    localStorage.getItem("userId")
+
+  return userName || "사용자"
+}
+
+export const syncStoredUserName = (name, userPatch = {}) => {
+  const currentUser = parseStoredUser() || {}
+  const nextName = String(
+    name ||
+      userPatch.name ||
+      userPatch.username ||
+      currentUser.name ||
+      currentUser.username ||
+      localStorage.getItem("userName") ||
+      localStorage.getItem("username") ||
+      "",
+  ).trim()
+
+  if (!nextName) return currentUser
+
+  const nextUser = {
+    ...currentUser,
+    ...userPatch,
+    id: userPatch.id ?? currentUser.id ?? localStorage.getItem("userId"),
+    name: nextName,
+    username: userPatch.username ?? currentUser.username ?? nextName,
+  }
+
+  localStorage.setItem("userName", nextName)
+  localStorage.setItem("username", nextUser.username || nextName)
+  localStorage.setItem("user", JSON.stringify(nextUser))
+  window.dispatchEvent(new Event("reco-user-change"))
+
+  return nextUser
+}
+
 export const hasLoginSession = () => {
   return Boolean(
     getCurrentUserId() ||

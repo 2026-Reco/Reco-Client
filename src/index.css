@@ -117,6 +117,18 @@ code {
 }
 @font-face {
   font-family: 'Paperlogy';
+  src: url('./assets/fonts/Paperlogy-5Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Paperlogy';
+  src: url('./assets/fonts/Paperlogy-6SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Paperlogy';
   src: url('./assets/fonts/Paperlogy-7Bold.ttf') format('truetype');
   font-weight: 700;
   font-style: normal;

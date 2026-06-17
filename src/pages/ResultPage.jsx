@@ -14,6 +14,76 @@ import { getRequiredEnv } from "../config/env";
 
 const SPRING_API_BASE = getRequiredEnv("VITE_SPRING_API_BASE_URL");
 
+const getResultTitle = (result) =>
+  result.item_name ||
+  result.waste_type_ko ||
+  "알 수 없는 품목";
+
+const stripGuideNumber = (text) => String(text || "").replace(/^\s*\d+[.)]\s*/, "");
+
+const stripGuideArrow = (text) =>
+  String(text || "")
+    .replace(/^\s*(?:→|->)\s*/, "")
+    .trim();
+
+const appendGuideDescription = (step, nextText) => {
+  const description = stripGuideArrow(nextText);
+
+  if (!description) return;
+
+  const compactCurrent = step.description.replace(/\s+/g, " ").trim();
+  const compactNext = description.replace(/\s+/g, " ").trim();
+
+  if (compactCurrent === compactNext || compactCurrent.includes(compactNext)) {
+    return;
+  }
+
+  step.description = step.description
+    ? `${step.description} ${description}`
+    : description;
+};
+
+const normalizeGuideSteps = (steps) => {
+  const normalized = [];
+  let currentStep = null;
+
+  steps
+    .flatMap((step) => String(step || "").split(/\r?\n/))
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      const withoutNumber = stripGuideNumber(line).trim();
+      const isNumbered = withoutNumber !== line;
+      const isDescriptionLine = /^(?:→|->)/.test(withoutNumber);
+
+      if (isNumbered && !isDescriptionLine) {
+        currentStep = {
+          title: withoutNumber,
+          description: "",
+        };
+        normalized.push(currentStep);
+        return;
+      }
+
+      if (!currentStep) {
+        currentStep = {
+          title: isDescriptionLine ? "분리배출 방법" : withoutNumber,
+          description: "",
+        };
+        normalized.push(currentStep);
+
+        if (isDescriptionLine) {
+          appendGuideDescription(currentStep, withoutNumber);
+        }
+        return;
+      }
+
+      appendGuideDescription(currentStep, withoutNumber);
+    });
+
+  return normalized;
+};
+
 const ResultPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -34,13 +104,7 @@ const ResultPage = () => {
 
   if (!result) return null;
 
-  const resultTitle =
-    result.itemName ||
-    result.item ||
-    result.waste_type_ko ||
-    result.primaryMaterial ||
-    result.primary_material ||
-    "분석 결과";
+  const resultTitle = getResultTitle(result);
 
   const getContaminationIcon = (status) => {
     switch (status) {
@@ -70,8 +134,8 @@ const ResultPage = () => {
         const payload = {
           userId: localStorage.getItem("userId"),
           imageUrl: result.imageUrl || capturedImage,
-          itemName: result.itemName || result.item,
-          item: result.item || result.itemName,
+          itemName: resultTitle,
+          item: resultTitle,
           primaryMaterial: result.primaryMaterial,
           isRecyclable: result.isRecyclable,
           disposalMethodSummary: result.disposalMethodSummary,
@@ -146,6 +210,7 @@ const ResultPage = () => {
   const disposalSteps = result.disposalMethodSummary
     ? result.disposalMethodSummary.split("\n")
     : result.disposalSteps || [];
+  const guideSteps = normalizeGuideSteps(disposalSteps);
 
   const normalizePercent = (value) => {
     const percent =
@@ -343,15 +408,23 @@ const getMaterialPercent = (item) =>
       <GuideCard>
         <GuideHeader>{resultTitle}은 이렇게 버려요.</GuideHeader>
         <GuideList>
-          {disposalSteps.length > 0 ? (
-            disposalSteps.map((step, index) => (
-              <GuideItem key={index}>
-                <div className="num">{step}</div>
+          {guideSteps.length > 0 ? (
+            guideSteps.map((step, index) => (
+              <GuideItem key={`${step.title}-${index}`}>
+                <GuideStepTitle>
+                  {index + 1}. {step.title}
+                </GuideStepTitle>
+                {step.description && (
+                  <GuideStepDescription>
+                    <GuideArrow>→</GuideArrow>
+                    <GuideDescriptionText>{step.description}</GuideDescriptionText>
+                  </GuideStepDescription>
+                )}
               </GuideItem>
             ))
           ) : (
             <GuideItem>
-              <div className="num">분리배출 방법을 불러오는 중...</div>
+              <GuideStepTitle>분리배출 방법을 불러오는 중...</GuideStepTitle>
             </GuideItem>
           )}
         </GuideList>
@@ -436,7 +509,7 @@ const Title = styled.h1`
   color: #53b175;
   font-weight: 800;
   margin-right: 24px;
-  font-family: "Paperlogy-7Bold", sans-serif;
+  font-family: "Paperlogy", sans-serif;
 `;
 
 const VisualSection = styled.div`
@@ -483,7 +556,7 @@ const CardTitle = styled.div`
   margin-bottom: 10px;
   text-align: left;
   color: #272727;
-  font-family: "Paperlogy-6SemiBold", sans-serif;
+  font-family: "Paperlogy", sans-serif;
 `;
 
 const ChartWrapper = styled.div`
@@ -549,7 +622,7 @@ const ContaminationTooltip = styled.div`
   z-index: 20;
   cursor: pointer;
   white-space: nowrap;
-  font-family: "Paperlogy-5Medium", sans-serif;
+  font-family: "Paperlogy", sans-serif;
 
   &::after {
     content: "";
@@ -591,32 +664,68 @@ const Dot = styled.span`
 const GuideCard = styled.div`
   border: 2px solid #53b175;
   border-radius: 20px;
-  padding: 20px;
+  padding: 28px 26px 32px;
 `;
 
 const GuideHeader = styled.div`
   font-weight: bold;
-  font-size: 16px;
-  margin-bottom: 10px;
+  font-size: 22px;
+  line-height: 1.28;
+  margin-bottom: 28px;
   text-align: left;
   color: #272727;
-  font-family: "Paperlogy-6SemiBold", sans-serif;
+  font-family: "Paperlogy", sans-serif;
 `;
 
 const GuideList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 0;
 `;
 
 const GuideItem = styled.div`
   text-align: left;
-  .num {
-    color: #53b175;
-    font-weight: bold;
-    font-size: 15px;
-    font-family: "Paperlogy-6SemiBold", sans-serif;
+  margin-bottom: 28px;
+
+  &:last-child {
+    margin-bottom: 0;
   }
+`;
+
+const GuideStepTitle = styled.div`
+  color: #53b175;
+  font-weight: bold;
+  font-size: 17px;
+  line-height: 1.35;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  font-family: "Paperlogy", sans-serif;
+`;
+
+const GuideStepDescription = styled.div`
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0;
+  align-items: start;
+  margin-top: 4px;
+  padding-left: 5px;
+  color: #272727;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  font-family: "Pretandard", sans-serif;
+`;
+
+const GuideArrow = styled.span`
+  display: inline-block;
+  line-height: 1.45;
+`;
+
+const GuideDescriptionText = styled.span`
+  display: block;
+  min-width: 0;
 `;
 
 const ActionButtonGroup = styled.div`
@@ -636,7 +745,7 @@ const ActionButton = styled.div`
   border-radius: 16px;
   text-align: center;
   cursor: pointer;
-  font-family: "Paperlogy-6SemiBold", sans-serif;
+  font-family: "Paperlogy", sans-serif;
   transition: background 0.2s ease;
   &:active { background-color: #dcdcdc; }
 `;
@@ -665,7 +774,7 @@ const ChatText = styled.div`
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  font-family: "Paperlogy-6SemiBold", sans-serif;
+  font-family: "Paperlogy", sans-serif;
 
   .top-msg {
     font-size: 12px;

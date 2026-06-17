@@ -7,6 +7,7 @@ import BiumAct from "../assets/img/Bium_act.svg";
 import ChevronDown from "../assets/img/down.svg";
 import ChevronUp from "../assets/img/up.svg";
 import { getRequiredEnv } from "../config/env";
+import { getCurrentUserName } from "../services/authUser";
 
 const Container = styled.div`
   display: flex;
@@ -395,14 +396,20 @@ const Activity = () => {
 
   useEffect(() => {
     const savedUserId = localStorage.getItem("userId");
-    const savedUsername = localStorage.getItem("username");
 
     if (!savedUserId) {
       navigate("/login");
       return;
     }
 
-    setUserName(savedUsername || savedUserId);
+    setUserName(getCurrentUserName());
+
+    const handleUserChange = () => {
+      setUserName(getCurrentUserName());
+    };
+
+    window.addEventListener("reco-user-change", handleUserChange);
+    window.addEventListener("storage", handleUserChange);
 
     const fetchActivity = async () => {
       try {
@@ -436,6 +443,11 @@ const Activity = () => {
 
     fetchActivity();
     fetchRecords();
+
+    return () => {
+      window.removeEventListener("reco-user-change", handleUserChange);
+      window.removeEventListener("storage", handleUserChange);
+    };
   }, [monthParam, navigate]);
 
   return (
