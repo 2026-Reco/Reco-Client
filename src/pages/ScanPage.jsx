@@ -51,7 +51,7 @@ const ScanPage = () => {
     const canvas = canvasRef.current;
 
     if (!video || !canvas) return;
-
+ 
     const ctx = canvas.getContext("2d");
 
     const videoRealWidth = video.videoWidth;
