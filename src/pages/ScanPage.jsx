@@ -36,15 +36,28 @@ const ScanPage = () => {
     };
   }, []);
   
-  const analyzeImage = async (file, previewImage) => {
+  const startAnalysis = (file, previewImage) => {
+    sessionStorage.removeItem("reco-current-analysis-result");
+    sessionStorage.removeItem("reco-current-analysis-title");
+
     navigate("/loading", {
       state: {
         mode: "analyze",
         file,
         previewImage,
+        analysisRequestId: Date.now(),
       },
     });
   };
+
+  const readFileAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
 
   const handleCapture = () => {
     const video = videoRef.current;
@@ -67,7 +80,7 @@ const ScanPage = () => {
           type: "image/jpeg",
         });
 
-        await analyzeImage(file, base64ImageData);
+        startAnalysis(file, base64ImageData);
       },
       "image/jpeg",
       0.8,
@@ -80,18 +93,24 @@ const ScanPage = () => {
     }
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+
     if (!file) return;
 
-    const reader = new FileReader();
+    if (!file.type.startsWith("image/")) {
+      alert("이미지 파일을 선택해주세요.");
+      return;
+    }
 
-    reader.onloadend = async () => {
-      const base64ImageData = reader.result;
-      await analyzeImage(file, base64ImageData);
-    };
-
-    reader.readAsDataURL(file);
+    try {
+      const previewImage = await readFileAsDataUrl(file);
+      startAnalysis(file, previewImage);
+    } catch (error) {
+      console.error("이미지 파일 읽기 실패:", error);
+      alert("이미지를 불러오지 못했습니다.");
+    }
   };
 
   return (
@@ -109,6 +128,9 @@ const ScanPage = () => {
         type="file"
         ref={fileInputRef}
         accept="image/*"
+        onClick={(e) => {
+          e.target.value = "";
+        }}
         onChange={handleFileChange}
       />
 

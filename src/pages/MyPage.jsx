@@ -4,8 +4,14 @@ import { useNavigate } from "react-router-dom"
 import profileImg from "../assets/img/profile.jpg"
 import BottomNavComponent from "../components/BottomNav"
 import EditIcon from "../assets/img/edit.svg"
-import { getCurrentUserId, hasLoginSession } from "../services/authUser"
+import {
+  getCurrentUserId,
+  getCurrentUserName,
+  hasLoginSession,
+  syncStoredUserName,
+} from "../services/authUser"
 import { getMyPlaceReports } from "../services/placeReport"
+import { getUser, updateUserName } from "../services/user"
 
 const Container = styled.div`
   display: flex;
@@ -314,6 +320,7 @@ const MyPage = () => {
   const [userName, setUserName] = useState("사용자 명")
   const [editName, setEditName] = useState("사용자 명")
   const [isEditing, setIsEditing] = useState(false)
+  const [isNameSaving, setIsNameSaving] = useState(false)
   const [locationAllowed, setLocationAllowed] = useState(false)
   const [isContactOpen, setIsContactOpen] = useState(false)
   const [isReportHistoryOpen, setIsReportHistoryOpen] = useState(false)
@@ -323,11 +330,8 @@ const MyPage = () => {
   const [reportLoadError, setReportLoadError] = useState("")
 
   useEffect(() => {
-    const savedUsername = localStorage.getItem("username")
-    const savedUserId = localStorage.getItem("userId")
     const savedLocationAllowed = localStorage.getItem("locationAllowed")
-    const savedUserName = localStorage.getItem("userName")
-    const nextUserName = savedUserName || savedUsername || savedUserId || "사용자 명"
+    const nextUserName = getCurrentUserName()
 
     setUserName(nextUserName)
     setEditName(nextUserName)
@@ -335,6 +339,26 @@ const MyPage = () => {
     if (savedLocationAllowed !== null) {
       setLocationAllowed(savedLocationAllowed === "true")
     }
+
+    const syncLatestUser = async () => {
+      const userId = getCurrentUserId()
+      if (!userId) return
+
+      try {
+        const user = await getUser(userId)
+        const latestName = user?.name || user?.username
+
+        if (!latestName) return
+
+        syncStoredUserName(latestName, user)
+        setUserName(latestName)
+        setEditName(latestName)
+      } catch (error) {
+        console.warn("사용자 정보 조회 실패:", error)
+      }
+    }
+
+    syncLatestUser()
   }, [])
 
   useEffect(() => {
@@ -437,20 +461,42 @@ const MyPage = () => {
     }
   }
 
-  const handleEditName = () => {
+  const handleEditName = async () => {
     if (!isEditing) {
       setIsEditing(true)
       return
     }
 
-    if (!editName.trim()) {
+    const nextName = editName.trim()
+
+    if (!nextName) {
       alert("이름을 입력해주세요.")
       return
     }
 
-    setUserName(editName)
-    localStorage.setItem("userName", editName)
-    setIsEditing(false)
+    const userId = getCurrentUserId()
+
+    if (!userId) {
+      alert("로그인이 필요합니다.")
+      navigate("/login")
+      return
+    }
+
+    try {
+      setIsNameSaving(true)
+      const updatedUser = await updateUserName(userId, nextName)
+      const updatedName = updatedUser?.name || updatedUser?.username || nextName
+
+      syncStoredUserName(updatedName, updatedUser || { id: userId })
+      setUserName(updatedName)
+      setEditName(updatedName)
+      setIsEditing(false)
+    } catch (error) {
+      console.error("이름 수정 실패:", error)
+      alert("이름 저장에 실패했습니다.")
+    } finally {
+      setIsNameSaving(false)
+    }
   }
   const handleLogout = () => {
     localStorage.removeItem("accessToken")
@@ -484,8 +530,8 @@ const MyPage = () => {
             <UserName style={{ marginBottom: 0 }}>{userName}</UserName>
           )}
 
-          <EditButton onClick={handleEditName}>
-            {isEditing ? "✓" : <img src={EditIcon} width={23} height={23} />}
+          <EditButton onClick={handleEditName} disabled={isNameSaving}>
+            {isEditing ? (isNameSaving ? "..." : "✓") : <img src={EditIcon} width={23} height={23} />}
           </EditButton>
         </UserNameRow>
         <LogoutButton onClick={handleLogout}>로그아웃</LogoutButton>

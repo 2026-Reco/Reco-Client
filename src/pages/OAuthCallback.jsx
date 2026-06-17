@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getRequiredEnv } from "../config/env";
+import { syncStoredUserName } from "../services/authUser";
 
 const OAuthCallback = () => {
   const navigate = useNavigate();
@@ -27,16 +28,10 @@ const OAuthCallback = () => {
         if (!res.ok) throw new Error("소셜 로그인 실패");
 
         const user = await res.json();
+        const displayName = user.name || user.username;
 
         localStorage.setItem("userId", user.id);
-        localStorage.setItem("username", user.username);
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: user.id,
-            username: user.username,
-          }),
-        );
+        syncStoredUserName(displayName, user);
 
         navigate("/");
       } catch (err) {

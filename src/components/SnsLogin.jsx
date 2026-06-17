@@ -4,6 +4,7 @@ import googleIcon from "../assets/google.png";
 import kakaoIcon from "../assets/kakao.png";
 import { getRequiredEnv } from "../config/env";
 import { useGoogleLogin } from "@react-oauth/google";
+import { syncStoredUserName } from "../services/authUser";
 
 const Wrapper = styled.div`
   display: flex;
@@ -85,16 +86,10 @@ const SnsLogin = () => {
         );
 
         const user = await response.json();
+        const displayName = user.name || user.username || userInfo.name;
 
         localStorage.setItem("userId", user.id);
-        localStorage.setItem("username", user.username);
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: user.id,
-            username: user.username,
-          }),
-        );
+        syncStoredUserName(displayName, user);
 
         window.location.href = "/";
       } catch (error) {

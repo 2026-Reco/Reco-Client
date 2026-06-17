@@ -19,6 +19,100 @@ const stripInlineMd = (s) =>
         .replace(/__(.+?)__/g, "$1")
         .replace(/`+([^`\n]+?)`+/g, "$1");
 
+const getInitialMessage = (text = "안녕하세요! 분리수거 도우미 비움이예요. 궁금한 품목이나 분리배출 방법을 물어봐 주세요.") => ({
+  id: Date.now(),
+  text,
+  sender: "bium",
+  time: nowTime(),
+});
+
+const formatMessageTime = (createdAt) => {
+  const date = new Date(createdAt);
+
+  if (Number.isNaN(date.getTime())) return nowTime();
+
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const getMessageTimestamp = (createdAt) => {
+  const time = new Date(createdAt).getTime();
+
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const normalizeMessagesResponse = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.result)) return data.result;
+  if (Array.isArray(data?.content)) return data.content;
+  if (Array.isArray(data?.messages)) return data.messages;
+
+  return [];
+};
+
+const toChatMessage = (msg) => ({
+  id: msg.id,
+  text: msg.content,
+  sender: msg.sender === "USER" ? "user" : "bium",
+  time: formatMessageTime(msg.createdAt),
+  createdAt: msg.createdAt,
+});
+
+const toStoredMessage = (message, sender) => ({
+  id: message.id,
+  content: message.text,
+  sender,
+  createdAt: message.createdAt || new Date().toISOString(),
+});
+
+const getRoomTitle = (text) => {
+  const title = String(text || "새 대화").replace(/\s+/g, " ").trim();
+
+  return title.length > 18 ? `${title.slice(0, 18)}...` : title;
+};
+
+const buildChatRooms = (history) => {
+  const sortedHistory = [...history].sort(
+    (a, b) => getMessageTimestamp(a.createdAt) - getMessageTimestamp(b.createdAt),
+  );
+  const rooms = [];
+  let currentRoom = null;
+
+  sortedHistory.forEach((msg) => {
+    const chatMessage = toChatMessage(msg);
+
+    if (msg.sender === "USER") {
+      if (currentRoom) {
+        rooms.push(currentRoom);
+      }
+
+      currentRoom = {
+        id: `chat_${msg.id}`,
+        title: getRoomTitle(msg.content),
+        updatedAt: msg.createdAt,
+        messages: [chatMessage],
+      };
+      return;
+    }
+
+    if (currentRoom) {
+      currentRoom.messages.push(chatMessage);
+      currentRoom.updatedAt = msg.createdAt || currentRoom.updatedAt;
+    }
+  });
+
+  if (currentRoom) {
+    rooms.push(currentRoom);
+  }
+
+  return rooms.sort(
+    (a, b) => getMessageTimestamp(b.updatedAt) - getMessageTimestamp(a.updatedAt),
+  );
+};
+
 const FormattedText = ({ text }) => {
     const lines = String(text ?? "").split(/\r?\n/);
     return (
@@ -57,14 +151,7 @@ const ChatbotPage = () => {
   const [chatRooms, setChatRooms] = useState([]); 
   
   const [inputValue, setInputValue] = useState("");
-  const [messages, setMessages] = useState([
-    {
-      id: Date.now(),
-      text: "안녕하세요! 분리수거 도우미 비움이예요. 궁금한 품목이나 분리배출 방법을 물어봐 주세요.",
-      sender: "bium",
-      time: nowTime(),
-    },
-  ]);
+  const [messages, setMessages] = useState([getInitialMessage()]);
   const [isLoading, setIsLoading] = useState(false);
   const [noticeShown, setNoticeShown] = useState(false);
   const chatEndRef = useRef(null);
@@ -95,26 +182,10 @@ const ChatbotPage = () => {
 
         if (!res.ok) throw new Error("이전 대화 불러오기 실패");
 
-        const data = await res.json();
+        const data = normalizeMessagesResponse(await res.json());
 
         if (data.length > 0) {
-          setChatRooms([
-            { id: "room_1", title: "플라스틱 배출방법" },
-            { id: "room_2", title: "음식물 배출방법" },
-            { id: "room_3", title: "유리 배출방법" }
-          ]);
-
-          setMessages(
-            data.map((msg) => ({
-              id: msg.id,
-              text: msg.content,
-              sender: msg.sender === "USER" ? "user" : "bium",
-              time: new Date(msg.createdAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-            })),
-          );
+          setChatRooms(buildChatRooms(data));
         } else {
           setChatRooms([]);
         }
@@ -126,18 +197,14 @@ const ChatbotPage = () => {
     fetchChatHistory();
   }, [navigate]);
 
-  const handleRoomClick = (roomTitle) => {
+  const handleRoomClick = (room) => {
+    setMessages(room.messages);
     setActiveTab("new");
   };
 
   const handleStartNewChat = () => {
     setMessages([
-      {
-        id: Date.now(),
-        text: "안녕하세요! 새로운 대화를 시작합니다. 궁금한 점을 물어보세요!",
-        sender: "bium",
-        time: nowTime(),
-      },
+      getInitialMessage("안녕하세요! 새로운 대화를 시작합니다. 궁금한 점을 물어보세요!"),
     ]);
     setActiveTab("new");
   };
@@ -152,11 +219,12 @@ const ChatbotPage = () => {
       navigate("/login");
       return;
     }
-    const userMessage = {
+  const userMessage = {
       id: Date.now(),
       text: userText,
       sender: "user",
       time: nowTime(),
+      createdAt: new Date().toISOString(),
     };
 
     const nextMessages = [...messages, userMessage];
@@ -199,14 +267,16 @@ const ChatbotPage = () => {
         console.error("[비움이] 봇 메시지 저장 실패:", err);
       }
       setMessages((prev) => {
+        const botMessage = {
+          id: Date.now() + 1,
+          text: reply,
+          sender: "bium",
+          time: nowTime(),
+          createdAt: new Date().toISOString(),
+        };
         const next = [
           ...prev,
-          {
-            id: Date.now() + 1,
-            text: reply,
-            sender: "bium",
-            time: nowTime(),
-          },
+          botMessage,
         ];
         if (source === "local" && notice && !noticeShown) {
           next.push({
@@ -218,6 +288,17 @@ const ChatbotPage = () => {
           });
           setNoticeShown(true);
         }
+        setChatRooms((prevRooms) =>
+          buildChatRooms([
+            ...prevRooms.flatMap((room) =>
+              room.messages.map((message) =>
+                toStoredMessage(message, message.sender === "user" ? "USER" : "BOT"),
+              ),
+            ),
+            toStoredMessage(userMessage, "USER"),
+            toStoredMessage(botMessage, "BOT"),
+          ]),
+        );
         return next;
       });
     } catch (err) {
@@ -280,8 +361,9 @@ const ChatbotPage = () => {
           ) : (
             <RoomList>
               {chatRooms.map((room) => (
-                <RoomItem key={room.id} onClick={() => handleRoomClick(room.title)}>
-                  {room.title}
+                <RoomItem key={room.id} onClick={() => handleRoomClick(room)}>
+                  <RoomTitle>{room.title}</RoomTitle>
+                  <RoomArrow>›</RoomArrow>
                 </RoomItem>
               ))}
             </RoomList>
@@ -453,18 +535,46 @@ const RoomList = styled.div`
 `;
 
 const RoomItem = styled.div`
-  background-color: #e2e2e2;
-  padding: 15px 20px;
-  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background-color: #fff;
+  padding: 16px 18px;
+  border: 1px solid rgba(83, 177, 117, 0.14);
+  border-radius: 14px;
+  box-shadow: 0px 4px 14px rgba(0, 0, 0, 0.06);
   font-size: 14px;
   font-weight: 600;
   color: #272727;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 
   &:hover {
-    opacity: 0.8;
+    border-color: rgba(83, 177, 117, 0.35);
+    box-shadow: 0px 6px 18px rgba(83, 177, 117, 0.14);
+    transform: translateY(-1px);
   }
+`;
+
+const RoomTitle = styled.span`
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+`;
+
+const RoomArrow = styled.span`
+  flex-shrink: 0;
+  color: #53B175;
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 700;
 `;
 
 const ChatArea = styled.div`
