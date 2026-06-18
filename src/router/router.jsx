@@ -56,6 +56,7 @@ const router = createBrowserRouter([
   { path: "/activity", element: <Activity /> },
   {path: "/location", element: <MapPage /> },
   { path: "/oauth/:provider", element: <OAuthCallback /> },
+  { path: "/oauth/:provider/callback", element: <OAuthCallback /> },
   { path: "/additional-question", element: <AdditionalQuestion /> }
 ]);
 
