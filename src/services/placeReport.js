@@ -21,11 +21,14 @@ export const createPlaceReport = async (reportData) => {
     body: JSON.stringify(reportData),
   })
 
+  const text = await response.text()
+
   if (!response.ok) {
-    throw new Error("Failed to create place report.")
+    throw new Error(
+      text || `Failed to create place report. (${response.status})`,
+    )
   }
 
-  const text = await response.text()
   if (!text) return null
 
   return JSON.parse(text)

@@ -306,11 +306,13 @@ const ReportLocation = () => {
             return
         }
 
+        const district = address.match(/[가-힣]+구/)?.[0] || ""
+
         const reportData = {
             userId,
             placeType: CATEGORY_TYPE_MAP[selectedCategory],
             name: detailAddress.trim() || address.trim(),
-            district: getDistrictFromAddress(address),
+            district,
             address: address.trim(),
             detailAddress: detailAddress.trim(),
             description: memo.trim(),
@@ -323,7 +325,7 @@ const ReportLocation = () => {
             navigate("/location")
         } catch (error) {
             console.error("\uc704\uce58 \uc81c\ubcf4 \uc2e4\ud328:", error)
-            alert("\uc704\uce58 \uc81c\ubcf4\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.")
+            alert(error.message || "\uc704\uce58 \uc81c\ubcf4\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.")
         } finally {
             setIsSubmitting(false)
         }
