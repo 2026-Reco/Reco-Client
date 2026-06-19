@@ -59,7 +59,7 @@ const ScanPage = () => {
       reader.readAsDataURL(file);
     });
 
-  // 카메라 네모 칸 안에 맞추기
+  // 카메라 네모 칸 안에 맞추기    
   const handleCapture = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
