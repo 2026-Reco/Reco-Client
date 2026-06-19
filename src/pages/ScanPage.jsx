@@ -67,25 +67,26 @@ const ScanPage = () => {
  
     const ctx = canvas.getContext("2d");
 
-    const videoRealWidth = video.videoWidth;
-    const videoRealHeight = video.videoHeight;
+    const vWidth = video.videoWidth;
+    const vHeight = video.videoHeight;
+    const cWidth = video.clientWidth;
+    const cHeight = video.clientHeight;
 
-    const videoDisplayWidth = video.clientWidth;
-    const videoDisplayHeight = video.clientHeight;
+    const videoScale = Math.max(cWidth / vWidth, cHeight / vHeight);
+    const actualRenderedWidth = vWidth * videoScale;
+    const actualRenderedHeight = vHeight * videoScale;
 
-    const scale = Math.max(videoRealWidth / videoDisplayWidth, videoRealHeight / videoDisplayHeight);
-    
-    const xOffset = (videoDisplayWidth * scale - videoRealWidth) / 2;
-    const yOffset = (videoDisplayHeight * scale - videoRealHeight) / 2;
+    const xOffset = (actualRenderedWidth - cWidth) / 2;
+    const yOffset = (actualRenderedHeight - cHeight) / 2;
 
     const frameSize = 288;
-    const frameLeft = (videoDisplayWidth - frameSize) / 2;
-    const frameTop = videoDisplayHeight * 0.48 - frameSize / 2; 
+    const frameLeft = (cWidth - frameSize) / 2;
+    const frameTop = cHeight * 0.48 - frameSize / 2; 
 
-    const sx = frameLeft * scale - xOffset;
-    const sy = frameTop * scale - yOffset;
-    const sw = frameSize * scale;
-    const sh = frameSize * scale;
+    const sx = (frameLeft + xOffset) / videoScale;
+    const sy = (frameTop + yOffset) / videoScale;
+    const sw = frameSize / videoScale;
+    const sh = frameSize / videoScale;
 
     canvas.width = 500;
     canvas.height = 500;
