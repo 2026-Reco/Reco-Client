@@ -202,7 +202,7 @@ const ScanFrame = styled.div`
 
 const CaptureButtonContainer = styled.div`
   position: absolute;
-  bottom: 170px; 
+  bottom: 120px; 
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -235,7 +235,7 @@ const CaptureButtonInner = styled.div`
   transition: background-color 0.2s;
 
   ${CaptureButton}:active & {
-    background-color: #c9c9c9;
+    background-color: #e8e8e8;
   }
 `;
 
