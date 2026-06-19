@@ -64,13 +64,35 @@ const ScanPage = () => {
     const canvas = canvasRef.current;
 
     if (!video || !canvas) return;
-
+ 
     const ctx = canvas.getContext("2d");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const base64ImageData = canvas.toDataURL("image/jpeg", 0.8);
+    const videoRealWidth = video.videoWidth;
+    const videoRealHeight = video.videoHeight;
+
+    const videoDisplayWidth = video.clientWidth;
+    const videoDisplayHeight = video.clientHeight;
+
+    const scale = Math.max(videoRealWidth / videoDisplayWidth, videoRealHeight / videoDisplayHeight);
+    
+    const xOffset = (videoDisplayWidth * scale - videoRealWidth) / 2;
+    const yOffset = (videoDisplayHeight * scale - videoRealHeight) / 2;
+
+    const frameSize = 288;
+    const frameLeft = (videoDisplayWidth - frameSize) / 2;
+    const frameTop = videoDisplayHeight * 0.48 - frameSize / 2; 
+
+    const sx = frameLeft * scale - xOffset;
+    const sy = frameTop * scale - yOffset;
+    const sw = frameSize * scale;
+    const sh = frameSize * scale;
+
+    canvas.width = 500;
+    canvas.height = 500;
+
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+    const base64ImageData = canvas.toDataURL("image/jpeg", 0.85);
 
     canvas.toBlob(
       async (blob) => {
@@ -83,7 +105,7 @@ const ScanPage = () => {
         startAnalysis(file, base64ImageData);
       },
       "image/jpeg",
-      0.8,
+      0.85,
     );
   };
 
