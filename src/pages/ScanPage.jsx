@@ -202,7 +202,7 @@ const ScanFrame = styled.div`
 
 const CaptureButtonContainer = styled.div`
   position: absolute;
-  bottom: 170px; 
+  bottom: 120px; 
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
