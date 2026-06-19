@@ -532,7 +532,7 @@ const CapturedImage = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scaleX(-1);
+  transform: scaleX(1);
 `;
 
 const Character = styled.img`
