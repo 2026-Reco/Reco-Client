@@ -1,4 +1,3 @@
-// src/components/BottomNav.jsx
 import React from "react";
 import styled from "styled-components";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -13,13 +12,12 @@ import ProfileIcon from "../assets/img/varprofile.svg";
 // 활성화 시 아이콘들
 import HomeOnIcon from "../assets/img/varhomeOn.svg";
 import LocationOnIcon from "../assets/img/varlocationOn.svg";
-import ScanIcon from "../assets/img/varscanIcon.svg";
 import ActivityOnIcon from "../assets/img/varactivityOn.svg";
 import ProfileOnIcon from "../assets/img/varprofileOn.svg";
 
-// --- 스타일 (기존 코드 유지) ---
+// --- 스타일 ---
 const NavContainer = styled.div`
-  position: fixed; /* 화면 하단 고정 */
+  position: fixed;
   bottom: 0;
   width: 393px;
   height: 88px;
@@ -35,8 +33,8 @@ const NavContainer = styled.div`
 
 const NavItem = styled.div`
   display: flex; 
-  flex-direction: 
-  column; align-items: center; 
+  flex-direction: column; 
+  align-items: center; 
   gap: 4px;
   font-family: Paperlogy; 
   font-size: 10px; 
@@ -44,9 +42,10 @@ const NavItem = styled.div`
 `;
 
 const NavIcon = styled.img` 
-width: 24px; 
-height: 24px; 
-object-fit: contain; `;
+  width: 24px; 
+  height: 24px; 
+  object-fit: contain; 
+`;
 
 const CameraWrapper = styled.div`
   width: 60px; 
@@ -58,26 +57,26 @@ const CameraWrapper = styled.div`
   align-items: center; 
   justify-content: center;
   box-shadow: 0px 4px 10px rgba(83, 177, 117, 0.3);
+  cursor: pointer;
 `;
 
-const StyledCameraIcon = styled.img` width: 32px; height: 32px; object-fit: contain; `;
+const StyledCameraIcon = styled.img` 
+  width: 32px; 
+  height: 32px; 
+  object-fit: contain; 
+`;
 
-const BottomNavComponent = ({ onCapture, hideTopShadow = false }) => {
+const BottomNavComponent = ({ hideTopShadow = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
   const isHome = location.pathname === "/";
   const isLocation = location.pathname === "/location";
-  const isScan = location.pathname === "/scan";
   const isActivity = location.pathname === "/activity";
   const isProfile = location.pathname === "/mypage";
 
   const handleCameraClick = () => {
-    if (isScan && onCapture) {
-      onCapture();
-    } else {
-      navigate('/scan');
-    }
+    navigate('/scan');
   };
 
   return (
@@ -91,7 +90,7 @@ const BottomNavComponent = ({ onCapture, hideTopShadow = false }) => {
       </NavItem>
 
       <CameraWrapper onClick={handleCameraClick}>
-        <StyledCameraIcon src={isScan ? ScanIcon : CameraIcon} alt="Camera" />
+        <StyledCameraIcon src={CameraIcon} alt="Camera" />
       </CameraWrapper>
 
       <NavItem onClick={() => navigate('/activity')}>
@@ -104,4 +103,5 @@ const BottomNavComponent = ({ onCapture, hideTopShadow = false }) => {
     </NavContainer>
   );
 };
+
 export default BottomNavComponent;

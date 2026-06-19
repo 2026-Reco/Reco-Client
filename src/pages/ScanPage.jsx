@@ -87,32 +87,6 @@ const ScanPage = () => {
     );
   };
 
-  const handleUploadClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      alert("이미지 파일을 선택해주세요.");
-      return;
-    }
-
-    try {
-      const previewImage = await readFileAsDataUrl(file);
-      startAnalysis(file, previewImage);
-    } catch (error) {
-      console.error("이미지 파일 읽기 실패:", error);
-      alert("이미지를 불러오지 못했습니다.");
-    }
-  };
-
   return (
     <Container>
       <BackBtn onClick={() => navigate(-1)}>
@@ -124,19 +98,13 @@ const ScanPage = () => {
       <Video ref={videoRef} autoPlay playsInline muted />
       <ScanFrame />
 
-      <HiddenFileInput
-        type="file"
-        ref={fileInputRef}
-        accept="image/*"
-        onClick={(e) => {
-          e.target.value = "";
-        }}
-        onChange={handleFileChange}
-      />
-
-      <UploadButton onClick={handleUploadClick}>Upload photo</UploadButton>
-
       <HiddenCanvas ref={canvasRef} />
+
+      <CaptureButtonContainer>
+        <CaptureButton onClick={handleCapture}>
+          <CaptureButtonInner />
+        </CaptureButton>
+      </CaptureButtonContainer>
 
       <BottomNav onCapture={handleCapture} />
     </Container>
@@ -162,10 +130,6 @@ const Video = styled.video`
 `;
 
 const HiddenCanvas = styled.canvas`
-  display: none;
-`;
-
-const HiddenFileInput = styled.input`
   display: none;
 `;
 
@@ -214,31 +178,42 @@ const ScanFrame = styled.div`
   pointer-events: none;
 `;
 
-const UploadButton = styled.div`
+const CaptureButtonContainer = styled.div`
   position: absolute;
-  /* ScanFrame 중심(48%) + 프레임 높이 절반(144px) + 여백(24px) */
-  top: calc(48% + 168px); 
+  bottom: 170px; 
   left: 50%;
   transform: translateX(-50%);
-
-  background-color: #53b175;
-  color: #ffffff;
-  font-family: "Pretendard", sans-serif;
-  font-size: 16px;
-  font-weight: 500;
-
-  padding: 12px 24px;
-  border-radius: 12px;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
-
-  cursor: pointer;
   z-index: 10;
-  text-align: center;
-  white-space: nowrap;
+`;
 
-  transition: background 0.2s ease-in-out;
+const CaptureButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 70px;
+  height: 70px;
+  background-color: transparent;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s ease-in-out;
+
   &:active {
-    background-color: #439460;
+    transform: scale(0.95);
+  }
+`;
+
+const CaptureButtonInner = styled.div`
+  width: 62px;
+  height: 62px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+
+  ${CaptureButton}:active & {
+    background-color: #c9c9c9;
   }
 `;
 
